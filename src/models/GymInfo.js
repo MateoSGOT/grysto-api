@@ -45,4 +45,4 @@ gymInfoSchema.statics.getInstance = async function getInstance() {
   return this.create({});
 };
 
-module.exports = mongoose.model('GymInfo', gymInfoSchema);
+module.exports = mongoose.model('GymInfo', gymInfoSchema, 'gymInfo');

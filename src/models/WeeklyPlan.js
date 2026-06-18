@@ -68,4 +68,4 @@ const weeklyPlanSchema = new mongoose.Schema(
 weeklyPlanSchema.index({ targetPosition: 1, targetLevel: 1, targetGoal: 1 });
 weeklyPlanSchema.index({ isActive: 1 });
 
-module.exports = mongoose.model('WeeklyPlan', weeklyPlanSchema);
+module.exports = mongoose.model('WeeklyPlan', weeklyPlanSchema, 'weeklyPlans');

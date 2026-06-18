@@ -115,5 +115,5 @@ coachConversationSchema.methods.addMessage = async function addMessage(
   return this.save();
 };
 
-module.exports = mongoose.model('CoachConversation', coachConversationSchema);
+module.exports = mongoose.model('CoachConversation', coachConversationSchema, 'coachConversations');
 module.exports.GRYSTO_SYSTEM_PROMPT = GRYSTO_SYSTEM_PROMPT;

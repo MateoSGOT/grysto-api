@@ -95,4 +95,4 @@ userPlanSchema.methods.recalculateCompletion =
     return this.save();
   };
 
-module.exports = mongoose.model('UserPlan', userPlanSchema);
+module.exports = mongoose.model('UserPlan', userPlanSchema, 'userPlans');

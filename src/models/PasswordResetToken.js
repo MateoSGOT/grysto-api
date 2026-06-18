@@ -43,4 +43,8 @@ passwordResetTokenSchema.statics.generateToken = function generateToken(userId) 
   });
 };
 
-module.exports = mongoose.model('PasswordResetToken', passwordResetTokenSchema);
+module.exports = mongoose.model(
+  'PasswordResetToken',
+  passwordResetTokenSchema,
+  'passwordResetTokens'
+);

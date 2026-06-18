@@ -100,4 +100,4 @@ playerProfileSchema.methods.getMatchScore = function getMatchScore(weeklyPlan) {
   return score;
 };
 
-module.exports = mongoose.model('PlayerProfile', playerProfileSchema);
+module.exports = mongoose.model('PlayerProfile', playerProfileSchema, 'playerProfiles');

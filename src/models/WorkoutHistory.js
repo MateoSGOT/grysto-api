@@ -114,4 +114,4 @@ workoutHistorySchema.statics.getStats = async function getStats(userId) {
   };
 };
 
-module.exports = mongoose.model('WorkoutHistory', workoutHistorySchema);
+module.exports = mongoose.model('WorkoutHistory', workoutHistorySchema, 'workoutHistory');

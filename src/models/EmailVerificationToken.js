@@ -47,5 +47,6 @@ emailVerificationTokenSchema.statics.generateToken = function generateToken(
 
 module.exports = mongoose.model(
   'EmailVerificationToken',
-  emailVerificationTokenSchema
+  emailVerificationTokenSchema,
+  'emailVerificationTokens'
 );
