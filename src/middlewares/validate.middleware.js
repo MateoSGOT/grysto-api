@@ -37,7 +37,18 @@ function validate(schema, source = 'body') {
         ApiError.unprocessable('Error de validación', formatIssues(result.error))
       );
     }
-    req[source] = result.data;
+    if (source === 'query') {
+      // Express 5: req.query es un getter sin setter; no se puede reasignar.
+      // Definimos una propiedad propia que sombrea el getter del prototipo.
+      Object.defineProperty(req, 'query', {
+        value: result.data,
+        writable: true,
+        configurable: true,
+        enumerable: true,
+      });
+    } else {
+      req[source] = result.data;
+    }
     return next();
   };
 }
