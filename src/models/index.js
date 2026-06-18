@@ -15,6 +15,7 @@ const CoachConversation = require('./CoachConversation');
 const Subscription = require('./Subscription');
 const PasswordResetToken = require('./PasswordResetToken');
 const EmailVerificationToken = require('./EmailVerificationToken');
+const RefreshToken = require('./RefreshToken');
 const GymInfo = require('./GymInfo');
 
 module.exports = {
@@ -29,5 +30,6 @@ module.exports = {
   Subscription,
   PasswordResetToken,
   EmailVerificationToken,
+  RefreshToken,
   GymInfo,
 };

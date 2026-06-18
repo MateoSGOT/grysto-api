@@ -26,7 +26,6 @@ const playerProfileSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      unique: true,
     },
     position: { type: String, enum: valuesOf(POSITIONS), required: true },
     level: { type: String, enum: valuesOf(LEVELS), required: true },

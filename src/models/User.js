@@ -23,7 +23,6 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       required: [true, 'El email es obligatorio'],
-      unique: true,
       lowercase: true,
       trim: true,
       match: [EMAIL_REGEX, 'El email no tiene un formato válido'],
@@ -69,24 +68,17 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// email único ya implícito por `unique: true`; se declara explícito por estándar.
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ role: 1 });
 
 /**
- * Hashea la contraseña (si cambió) y normaliza el email antes de guardar.
+ * Hashea la contraseña (si cambió) antes de validar, para que el hash de 60
+ * caracteres satisfaga el `minlength`. Corre en `pre('validate')` porque la
+ * validación de Mongoose se ejecuta antes que `pre('save')`.
  */
-userSchema.pre('save', async function preSave(next) {
-  if (this.isModified('email') && typeof this.email === 'string') {
-    this.email = this.email.toLowerCase().trim();
-  }
-  if (!this.isModified('password')) return next();
-  try {
-    this.password = await bcrypt.hash(this.password, BCRYPT_ROUNDS);
-    return next();
-  } catch (err) {
-    return next(err);
-  }
+userSchema.pre('validate', async function hashPassword() {
+  if (!this.isModified('password')) return;
+  this.password = await bcrypt.hash(this.password, BCRYPT_ROUNDS);
 });
 
 /**

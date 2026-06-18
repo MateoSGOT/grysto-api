@@ -21,7 +21,6 @@ router.get('/health', (req, res) =>
   )
 );
 
-// Próxima fase:
-// router.use('/auth', require('./auth.routes'));
+router.use('/auth', require('./auth.routes'));
 
 module.exports = router;

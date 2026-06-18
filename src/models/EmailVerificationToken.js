@@ -17,7 +17,7 @@ const emailVerificationTokenSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    token: { type: String, required: true, unique: true },
+    token: { type: String, required: true },
     expiresAt: { type: Date, required: true },
     verified: { type: Boolean, default: false },
     verifiedAt: { type: Date, default: null },

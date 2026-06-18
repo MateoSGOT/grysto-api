@@ -16,7 +16,6 @@ const subscriptionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      unique: true,
     },
     status: { type: String, enum: valuesOf(SUB_STATUS), required: true },
     plan: { type: String, default: PLANS.PREMIUM },

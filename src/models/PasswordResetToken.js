@@ -17,7 +17,7 @@ const passwordResetTokenSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    token: { type: String, required: true, unique: true },
+    token: { type: String, required: true },
     expiresAt: { type: Date, required: true },
     used: { type: Boolean, default: false },
     usedAt: { type: Date, default: null },
