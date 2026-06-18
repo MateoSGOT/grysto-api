@@ -68,7 +68,7 @@ const playerProfileSchema = new mongoose.Schema(
     },
     gymAccess: { type: String, enum: valuesOf(GYM_ACCESS), required: true },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 playerProfileSchema.index({ userId: 1 }, { unique: true });

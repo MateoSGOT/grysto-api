@@ -50,7 +50,7 @@ const workoutHistorySchema = new mongoose.Schema(
       maxlength: [500, 'Las notas no pueden superar 500 caracteres'],
     },
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: { createdAt: true, updatedAt: false }, versionKey: false }
 );
 
 workoutHistorySchema.index({ userId: 1, completedAt: -1 });

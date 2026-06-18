@@ -34,7 +34,7 @@ const subscriptionSchema = new mongoose.Schema(
     lastPaymentDate: { type: Date, default: null },
     nextBillingDate: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 subscriptionSchema.index({ userId: 1 }, { unique: true });

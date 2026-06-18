@@ -62,7 +62,7 @@ const weeklyPlanSchema = new mongoose.Schema(
     },
     isActive: { type: Boolean, default: true },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 weeklyPlanSchema.index({ targetPosition: 1, targetLevel: 1, targetGoal: 1 });

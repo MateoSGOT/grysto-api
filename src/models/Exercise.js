@@ -51,7 +51,7 @@ const exerciseSchema = new mongoose.Schema(
     },
     tags: { type: [String], default: [] },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 exerciseSchema.index({ category: 1 });

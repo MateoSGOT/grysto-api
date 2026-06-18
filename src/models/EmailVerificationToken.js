@@ -22,7 +22,7 @@ const emailVerificationTokenSchema = new mongoose.Schema(
     verified: { type: Boolean, default: false },
     verifiedAt: { type: Date, default: null },
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: { createdAt: true, updatedAt: false }, versionKey: false }
 );
 
 emailVerificationTokenSchema.index({ token: 1 }, { unique: true });

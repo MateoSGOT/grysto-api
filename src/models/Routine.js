@@ -70,7 +70,7 @@ const routineSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 routineSchema.index({ level: 1, category: 1 });

@@ -36,7 +36,7 @@ const refreshTokenSchema = new mongoose.Schema(
     createdByIp: { type: String, default: null },
     revokedAt: { type: Date, default: null },
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: { createdAt: true, updatedAt: false }, versionKey: false }
 );
 
 refreshTokenSchema.index({ token: 1 }, { unique: true });

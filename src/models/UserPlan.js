@@ -59,7 +59,7 @@ const userPlanSchema = new mongoose.Schema(
       max: [100, 'El porcentaje máximo es 100'],
     },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 userPlanSchema.index({ userId: 1, status: 1 });

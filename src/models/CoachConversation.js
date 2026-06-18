@@ -54,7 +54,7 @@ const coachConversationSchema = new mongoose.Schema(
     isArchived: { type: Boolean, default: false },
     lastMessageAt: { type: Date, default: Date.now },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 coachConversationSchema.index({ userId: 1, lastMessageAt: -1 });

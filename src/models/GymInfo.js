@@ -25,7 +25,7 @@ const gymInfoSchema = new mongoose.Schema(
     isComingSoon: { type: Boolean, default: true },
     updatedAt: { type: Date, default: Date.now },
   },
-  { timestamps: false }
+  { timestamps: false, versionKey: false }
 );
 
 /** Mantiene `updatedAt` al guardar. */

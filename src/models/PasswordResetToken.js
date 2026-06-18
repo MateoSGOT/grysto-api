@@ -22,7 +22,7 @@ const passwordResetTokenSchema = new mongoose.Schema(
     used: { type: Boolean, default: false },
     usedAt: { type: Date, default: null },
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: { createdAt: true, updatedAt: false }, versionKey: false }
 );
 
 passwordResetTokenSchema.index({ token: 1 }, { unique: true });
