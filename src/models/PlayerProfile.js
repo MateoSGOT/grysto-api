@@ -29,7 +29,15 @@ const playerProfileSchema = new mongoose.Schema(
     },
     position: { type: String, enum: valuesOf(POSITIONS), required: true },
     level: { type: String, enum: valuesOf(LEVELS), required: true },
-    primaryGoal: { type: String, enum: valuesOf(GOALS), required: true },
+    goals: {
+      type: [String],
+      enum: valuesOf(GOALS),
+      required: true,
+      validate: {
+        validator: (arr) => Array.isArray(arr) && arr.length >= 1,
+        message: 'Selecciona al menos un objetivo',
+      },
+    },
     trainingDaysPerWeek: {
       type: String,
       enum: valuesOf(TRAINING_DAYS),
@@ -94,8 +102,14 @@ playerProfileSchema.methods.getMatchScore = function getMatchScore(weeklyPlan) {
   const levels = weeklyPlan.targetLevel || [];
   if (levels.includes(this.level)) score += SCORE_LEVEL;
 
-  const goals = weeklyPlan.targetGoal || [];
-  if (goals.includes(this.primaryGoal)) score += SCORE_GOAL;
+  // Objetivos: score PROPORCIONAL a cuántos de los goals del jugador cubre el
+  // plan (más justo que un todo-o-nada). Ej.: 3 goals, plan cubre 2 → 25·2/3.
+  const playerGoals = this.goals || [];
+  const planGoals = weeklyPlan.targetGoal || [];
+  if (playerGoals.length > 0) {
+    const covered = playerGoals.filter((g) => planGoals.includes(g)).length;
+    score += SCORE_GOAL * (covered / playerGoals.length);
+  }
 
   return score;
 };

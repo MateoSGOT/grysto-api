@@ -34,7 +34,7 @@ function validRegisterPayload(overrides = {}) {
     password: 'Password123',
     position: 'base',
     level: 'intermedio',
-    primaryGoal: 'salto_vertical',
+    goals: ['salto_vertical', 'resistencia'],
     trainingDaysPerWeek: '3-4',
     sessionDuration: '45-60min',
     height: 178,

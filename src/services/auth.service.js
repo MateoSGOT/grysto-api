@@ -78,7 +78,7 @@ async function register(data, ip = null) {
             userId: user._id,
             position: data.position,
             level: data.level,
-            primaryGoal: data.primaryGoal,
+            goals: data.goals,
             trainingDaysPerWeek: data.trainingDaysPerWeek,
             sessionDuration: data.sessionDuration,
             height: data.height,

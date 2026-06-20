@@ -68,7 +68,14 @@ const registerSchema = z.object({
   // Cuestionario (11 campos del PlayerProfile).
   position: enumField(POSITIONS, 'la posición'),
   level: enumField(LEVELS, 'el nivel'),
-  primaryGoal: enumField(GOALS, 'el objetivo principal'),
+  goals: z
+    .array(enumField(GOALS, 'el objetivo'), {
+      message: 'Selecciona al menos un objetivo',
+    })
+    .min(1, 'Selecciona al menos un objetivo')
+    .refine((arr) => new Set(arr).size === arr.length, {
+      message: 'No repitas objetivos',
+    }),
   trainingDaysPerWeek: enumField(TRAINING_DAYS, 'los días de entrenamiento'),
   sessionDuration: enumField(SESSION_DURATION, 'la duración de sesión'),
   height: z.coerce
