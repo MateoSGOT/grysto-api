@@ -7,6 +7,7 @@
  */
 
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { config } = require('../config/env');
 
 const MINUTE = 60 * 1000;
@@ -73,7 +74,9 @@ const coachLimiter = createRateLimiter({
   limit: 20,
   message: 'Has enviado muchos mensajes al Coach IA. Intenta de nuevo en unos minutos.',
   skip: skipInTest,
-  keyGenerator: (req) => String(req.user?.id ?? req.ip),
+  // Limita por usuario autenticado. Solo cae a la IP cuando no hay usuario, y
+  // ahí usa el helper ipKeyGenerator para normalizar IPv6 (evita ERR_ERL_KEY_GEN_IPV6).
+  keyGenerator: (req) => (req.user?.id ? String(req.user.id) : ipKeyGenerator(req.ip)),
 });
 
 module.exports = {
