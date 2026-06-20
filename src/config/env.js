@@ -72,7 +72,15 @@ const config = Object.freeze({
   }),
 
   ai: Object.freeze({
-    defaultProvider: optional('AI_DEFAULT_PROVIDER', 'anthropic'),
+    defaultProvider: optional('AI_DEFAULT_PROVIDER', 'gemini'),
+    gemini: Object.freeze({
+      apiKey: optional('GEMINI_API_KEY', ''),
+      model: optional('GEMINI_MODEL', 'gemini-2.5-flash'),
+    }),
+    anthropic: Object.freeze({
+      apiKey: optional('ANTHROPIC_API_KEY', ''),
+      model: optional('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
+    }),
   }),
 });
 

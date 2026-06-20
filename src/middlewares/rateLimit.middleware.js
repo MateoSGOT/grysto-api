@@ -23,15 +23,17 @@ const skipInTest = () => config.isTest;
  * @param {number} opts.limit - Máximo de requests por ventana.
  * @param {string} opts.message - Mensaje 429 en español.
  * @param {() => boolean} [opts.skip] - Predicado para omitir el limiter.
+ * @param {(req: import('express').Request) => string} [opts.keyGenerator] - Clave del limiter (default: IP).
  * @returns {import('express').RequestHandler} Middleware limiter.
  */
-function createRateLimiter({ windowMs, limit, message, skip }) {
+function createRateLimiter({ windowMs, limit, message, skip, keyGenerator }) {
   return rateLimit({
     windowMs,
     limit,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     skip,
+    ...(keyGenerator ? { keyGenerator } : {}),
     handler: (_req, res) =>
       res.status(429).json({ success: false, message }),
   });
@@ -61,9 +63,23 @@ const forgotPasswordLimiter = createRateLimiter({
   skip: skipInTest,
 });
 
+/**
+ * 20 mensajes al Coach IA por USUARIO cada 15 minutos: protege la cuota
+ * gratuita de Gemini y controla costos cuando sea de pago. Se monta después
+ * de `authenticate`, por lo que `req.user` ya existe.
+ */
+const coachLimiter = createRateLimiter({
+  windowMs: 15 * MINUTE,
+  limit: 20,
+  message: 'Has enviado muchos mensajes al Coach IA. Intenta de nuevo en unos minutos.',
+  skip: skipInTest,
+  keyGenerator: (req) => String(req.user?.id ?? req.ip),
+});
+
 module.exports = {
   createRateLimiter,
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,
+  coachLimiter,
 };

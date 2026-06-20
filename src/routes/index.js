@@ -26,5 +26,6 @@ router.use('/exercises', require('./exercise.routes'));
 router.use('/routines', require('./routine.routes'));
 router.use('/weekly-plans', require('./weeklyPlan.routes'));
 router.use('/my-plan', require('./userPlan.routes'));
+router.use('/coach', require('./coach.routes'));
 
 module.exports = router;
