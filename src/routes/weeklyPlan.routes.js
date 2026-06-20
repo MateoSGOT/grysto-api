@@ -16,6 +16,7 @@ const {
   updateWeeklyPlanSchema,
   listWeeklyPlansQuerySchema,
 } = require('../validators/weeklyPlan.validator');
+const { idParamSchema } = require('../validators/common.validator');
 
 const router = express.Router();
 
@@ -26,7 +27,12 @@ router.get(
   weeklyPlanController.list
 );
 
-router.get('/:id', authenticate, weeklyPlanController.getById);
+router.get(
+  '/:id',
+  authenticate,
+  validate(idParamSchema, 'params'),
+  weeklyPlanController.getById
+);
 
 router.post(
   '/',
@@ -40,6 +46,7 @@ router.put(
   '/:id',
   authenticate,
   requireRole(ROLES.ADMIN),
+  validate(idParamSchema, 'params'),
   validate(updateWeeklyPlanSchema),
   weeklyPlanController.update
 );
@@ -48,6 +55,7 @@ router.delete(
   '/:id',
   authenticate,
   requireRole(ROLES.ADMIN),
+  validate(idParamSchema, 'params'),
   weeklyPlanController.remove
 );
 

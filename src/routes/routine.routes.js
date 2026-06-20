@@ -17,6 +17,7 @@ const {
   updateRoutineSchema,
   listRoutinesQuerySchema,
 } = require('../validators/routine.validator');
+const { idParamSchema } = require('../validators/common.validator');
 
 const router = express.Router();
 
@@ -27,7 +28,12 @@ router.get(
   routineController.list
 );
 
-router.get('/:id', authenticate, routineController.getById);
+router.get(
+  '/:id',
+  authenticate,
+  validate(idParamSchema, 'params'),
+  routineController.getById
+);
 
 router.post(
   '/',
@@ -41,6 +47,7 @@ router.put(
   '/:id',
   authenticate,
   requireRole(ROLES.ADMIN),
+  validate(idParamSchema, 'params'),
   validate(updateRoutineSchema),
   routineController.update
 );
@@ -49,6 +56,7 @@ router.delete(
   '/:id',
   authenticate,
   requireRole(ROLES.ADMIN),
+  validate(idParamSchema, 'params'),
   routineController.remove
 );
 

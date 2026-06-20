@@ -26,8 +26,10 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 100kb es suficiente: la API solo recibe JSON pequeño (las imágenes van por
+// URL a Cloudinary). Limita la superficie de DoS por payloads gigantes.
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 app.use(cookieParser());
 
 // Rutas versionadas.

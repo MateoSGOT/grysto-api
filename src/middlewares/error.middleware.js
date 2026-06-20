@@ -80,10 +80,17 @@ function normalize(err) {
 function errorMiddleware(err, req, res, next) {
   const apiError = normalize(err);
 
-  // Loguear errores no operacionales (bugs) con stack completo.
-  if (!apiError.isOperational || apiError.statusCode >= 500) {
+  const isServerError = apiError.statusCode >= 500;
+
+  // Loguear errores no operacionales (bugs) o 5xx con stack y detalle completo
+  // (incl. detalle del proveedor de IA) — server-side, para debugging.
+  if (!apiError.isOperational || isServerError) {
     // eslint-disable-next-line no-console
     console.error('✗ [error]', err.stack || err.message || err);
+    if (apiError.details) {
+      // eslint-disable-next-line no-console
+      console.error('✗ [error:details]', apiError.details);
+    }
   }
 
   const body = {
@@ -91,7 +98,10 @@ function errorMiddleware(err, req, res, next) {
     message: apiError.message,
   };
 
-  if (apiError.details) body.details = apiError.details;
+  // No exponer `details` internos en errores 5xx en producción (p. ej. el
+  // detalle del proveedor de IA). En 4xx (validación, etc.) sí son útiles al cliente.
+  const hideDetails = config.isProduction && isServerError;
+  if (apiError.details && !hideDetails) body.details = apiError.details;
   if (!config.isProduction) body.stack = err.stack;
 
   return res.status(apiError.statusCode).json(body);

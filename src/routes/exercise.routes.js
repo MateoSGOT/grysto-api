@@ -16,6 +16,7 @@ const {
   updateExerciseSchema,
   listExercisesQuerySchema,
 } = require('../validators/exercise.validator');
+const { idParamSchema } = require('../validators/common.validator');
 
 const router = express.Router();
 
@@ -26,7 +27,12 @@ router.get(
   exerciseController.list
 );
 
-router.get('/:id', authenticate, exerciseController.getById);
+router.get(
+  '/:id',
+  authenticate,
+  validate(idParamSchema, 'params'),
+  exerciseController.getById
+);
 
 router.post(
   '/',
@@ -40,6 +46,7 @@ router.put(
   '/:id',
   authenticate,
   requireRole(ROLES.ADMIN),
+  validate(idParamSchema, 'params'),
   validate(updateExerciseSchema),
   exerciseController.update
 );
@@ -48,6 +55,7 @@ router.delete(
   '/:id',
   authenticate,
   requireRole(ROLES.ADMIN),
+  validate(idParamSchema, 'params'),
   exerciseController.remove
 );
 

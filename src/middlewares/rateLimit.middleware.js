@@ -4,6 +4,12 @@
  * @file Rate limiters para endpoints sensibles (express-rate-limit).
  * En entorno de test se omiten para no interferir con el flujo de pruebas;
  * el comportamiento 429 se valida con el factory directamente.
+ *
+ * TODO (despliegue multi-instancia): estos limiters usan el MemoryStore por
+ * defecto, que es POR PROCESO. Al escalar a >1 instancia (p. ej. autoscaling
+ * en Render) los contadores no se comparten y los límites se degradan
+ * (debilita anti-fuerza-bruta en login y el control de costo del coach).
+ * Migrar a un store compartido (rate-limit-redis + Redis) antes de escalar.
  */
 
 const rateLimit = require('express-rate-limit');
