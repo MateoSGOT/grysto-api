@@ -12,17 +12,15 @@ const {
   EmailVerificationToken,
   PasswordResetToken,
   RefreshToken,
-  WeeklyPlan,
-  UserPlan,
 } = require('../models');
 const { signAccessToken } = require('../utils/jwt.util');
 const ApiError = require('../utils/ApiError');
-const { PLAN_SOURCE, PLAN_STATUS } = require('../constants/enums');
+const { PLAN_SOURCE } = require('../constants/enums');
 const emailService = require('./email.service');
+const weeklyPlanService = require('./weeklyPlan.service');
+const userPlanService = require('./userPlan.service');
 
 const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 h
-const PLAN_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 días
-const WEEK_DAYS = 7;
 
 const crypto = require('crypto');
 
@@ -158,46 +156,23 @@ async function login(email, password, ip = null) {
 
 /**
  * Genera el plan recomendado tras la verificación: elige el WeeklyPlan activo
- * con mayor match-score y crea el UserPlan correspondiente. Tolera catálogo vacío.
+ * con mayor match-score (vía weeklyPlanService) y crea el UserPlan inicial con
+ * source 'recommended_after_questionnaire'. Tolera catálogo vacío (retorna null).
  *
  * @param {mongoose.Types.ObjectId} userId - Usuario.
  * @returns {Promise<mongoose.Document|null>} UserPlan creado o null.
  */
 async function recommendPlan(userId) {
-  const [profile, plans] = await Promise.all([
-    PlayerProfile.findOne({ userId }),
-    WeeklyPlan.find({ isActive: true }),
-  ]);
+  const profile = await PlayerProfile.findOne({ userId });
+  if (!profile) return null;
 
-  if (!profile || plans.length === 0) return null;
-
-  let best = null;
-  let bestScore = -1;
-  for (const plan of plans) {
-    const score = profile.getMatchScore(plan);
-    if (score > bestScore) {
-      bestScore = score;
-      best = plan;
-    }
-  }
+  const best = await weeklyPlanService.getRecommendedForProfile(profile);
   if (!best) return null;
 
-  const now = new Date();
-  const progress = Array.from({ length: WEEK_DAYS }, (_, i) => ({
-    dayNumber: i + 1,
-    completed: false,
-    completedAt: null,
-    skipped: false,
-  }));
-
-  return UserPlan.create({
+  return userPlanService.createUserPlanForUser({
     userId,
-    weeklyPlanId: best._id,
+    weeklyPlan: best,
     source: PLAN_SOURCE.RECOMMENDED,
-    status: PLAN_STATUS.ACTIVE,
-    startedAt: now,
-    endsAt: new Date(now.getTime() + PLAN_DURATION_MS),
-    progress,
   });
 }
 

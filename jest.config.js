@@ -13,4 +13,7 @@ module.exports = {
   testMatch: ['**/tests/**/*.test.js'],
   verbose: true,
   forceExit: true,
+  // Serializa los suites: cada uno levanta su propio MongoMemoryReplSet y en
+  // Windows varios mongod arrancando en paralelo se pisan (timeout de arranque).
+  maxWorkers: 1,
 };

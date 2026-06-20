@@ -65,7 +65,12 @@ const weeklyPlanSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-weeklyPlanSchema.index({ targetPosition: 1, targetLevel: 1, targetGoal: 1 });
+// MongoDB no permite un índice COMPUESTO sobre múltiples campos array
+// (parallel arrays). targetPosition/targetLevel/targetGoal son arrays, así que
+// se indexan por separado (cada uno multikey, válido) en vez de compuesto.
+weeklyPlanSchema.index({ targetPosition: 1 });
+weeklyPlanSchema.index({ targetLevel: 1 });
+weeklyPlanSchema.index({ targetGoal: 1 });
 weeklyPlanSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('WeeklyPlan', weeklyPlanSchema, 'weeklyPlans');

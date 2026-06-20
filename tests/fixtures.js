@@ -150,6 +150,43 @@ function validRoutinePayload(exerciseId, overrides = {}) {
   };
 }
 
+/**
+ * Payload válido de plan semanal: día 1 con una rutina, días 2-7 de descanso.
+ *
+ * @param {string} routineId - Id de una rutina existente.
+ * @param {Object} [overrides={}] - Overrides.
+ * @returns {Object} Payload.
+ */
+function validWeeklyPlanPayload(routineId, overrides = {}) {
+  const restDays = [2, 3, 4, 5, 6, 7].map((n) => ({
+    dayNumber: n,
+    category: 'descanso',
+    title: `Descanso ${n}`,
+    isRestDay: true,
+    routines: [],
+  }));
+  return {
+    name: 'Plan de fuerza y salto',
+    description: 'Plan recurrente enfocado en fuerza y potencia de salto.',
+    targetPosition: ['all'],
+    targetLevel: ['intermedio'],
+    targetGoal: ['salto_vertical'],
+    isPremium: false,
+    days: [
+      {
+        dayNumber: 1,
+        category: 'fisico',
+        title: 'Día de fuerza',
+        isRestDay: false,
+        routines: [String(routineId)],
+      },
+      ...restDays,
+    ],
+    coverImage: null,
+    ...overrides,
+  };
+}
+
 module.exports = {
   uniqueEmail,
   validRegisterPayload,
@@ -161,4 +198,5 @@ module.exports = {
   authHeader,
   validExercisePayload,
   validRoutinePayload,
+  validWeeklyPlanPayload,
 };
