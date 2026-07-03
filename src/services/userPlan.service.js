@@ -14,33 +14,22 @@ const {
 } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { PLAN_SOURCE, PLAN_STATUS } = require('../constants/enums');
-const { getProgressionRule } = require('../constants/progression');
+const {
+  getProgressionRule,
+  validateMetricValue,
+} = require('../constants/progression');
 const { freshDaysProgress } = require('../models/UserPlan');
-
-/**
- * Deriva el valor base de una carga desde la prescripción de un ejercicio en
- * una rutina (segundos > reps > sets > 1).
- *
- * @param {Object} entry - Sub-ejercicio de la rutina.
- * @returns {number} Valor base numérico.
- */
-function baseValueFromEntry(entry) {
-  if (entry.seconds != null) return entry.seconds;
-  if (entry.reps != null) {
-    const n = Number.parseInt(entry.reps, 10);
-    if (!Number.isNaN(n)) return n;
-  }
-  if (entry.sets != null) return entry.sets;
-  return 1;
-}
 
 /**
  * Construye las cargas iniciales de un plan: una por cada ejercicio único
  * referenciado en las rutinas del plan, con su métrica/unidad según la
- * categoría y un valor sugerido base.
+ * categoría. Las cargas nacen SIN CALIBRAR (`suggestedValue: null`,
+ * `calibrated: false`): el sistema no puede adivinar cuánto peso/salto/tiro
+ * hace el usuario, así que NO se deriva ningún valor de reps/sets. La base se
+ * fija cuando el usuario registra su marca real (confirm-load).
  *
  * @param {import('mongoose').Document} weeklyPlan - Plan semanal.
- * @returns {Promise<Array<Object>>} Cargas iniciales.
+ * @returns {Promise<Array<Object>>} Cargas iniciales sin calibrar.
  */
 async function buildInitialLoads(weeklyPlan) {
   const routineIds = weeklyPlan.days.flatMap((d) => d.routines || []);
@@ -73,11 +62,12 @@ async function buildInitialLoads(weeklyPlan) {
     loads.push({
       exerciseId: entry.exerciseId,
       category,
-      suggestedValue: baseValueFromEntry(entry),
+      suggestedValue: null, // sin calibrar: se fija con la marca real del usuario
       actualValue: null,
       metric: rule.metric,
       unit: rule.unit,
       confirmed: false,
+      calibrated: false,
     });
   }
   return loads;
@@ -293,10 +283,20 @@ async function confirmLoad(userId, exerciseId, actualValue) {
   const plan = await findActivePlan(userId);
   if (!plan) throw ApiError.notFound('No tienes un plan activo');
 
-  const load = plan.confirmLoad(exerciseId, actualValue);
-  if (!load) {
+  // Localiza la carga para validar el valor real contra el rango de su métrica
+  // ANTES de mutar (si el ejercicio no está, es 404, no un valor inválido).
+  const cycle = plan.getCurrentCycle();
+  const target = cycle?.loads.find(
+    (l) => String(l.exerciseId) === String(exerciseId)
+  );
+  if (!target) {
     throw ApiError.notFound('Ejercicio no encontrado en el ciclo actual');
   }
+
+  const check = validateMetricValue(target.metric, actualValue);
+  if (!check.ok) throw ApiError.badRequest(check.message);
+
+  const load = plan.confirmLoad(exerciseId, actualValue);
   await plan.save();
   return load;
 }
@@ -321,7 +321,14 @@ async function adjustSuggestedLoad(userId, exerciseId, newValue) {
   if (!load) {
     throw ApiError.notFound('Ejercicio no encontrado en el ciclo actual');
   }
+
+  const check = validateMetricValue(load.metric, newValue);
+  if (!check.ok) throw ApiError.badRequest(check.message);
+
+  // Fijar manualmente la carga sugerida también calibra: el usuario está
+  // declarando su base. Mantiene el invariante suggestedValue!=null ⇔ calibrated.
   load.suggestedValue = newValue;
+  load.calibrated = true;
   await plan.save();
   return load;
 }
@@ -340,13 +347,28 @@ async function getProgressionPreview(userId) {
   const cycle = plan.getCurrentCycle();
   const preview = (cycle?.loads || []).map((l) => {
     const rule = getProgressionRule(l.category);
-    const base =
-      l.confirmed && l.actualValue != null ? l.actualValue : l.suggestedValue;
+    // Sin calibrar → no hay base real: no inventamos progresión.
+    if (!l.calibrated) {
+      return {
+        exerciseId: l.exerciseId,
+        category: l.category,
+        metric: l.metric,
+        unit: l.unit,
+        calibrated: false,
+        currentValue: null,
+        nextSuggestedValue: null,
+        increment: rule.defaultIncrement,
+        description:
+          'Pendiente de calibrar: registra tu marca real para empezar a progresar.',
+      };
+    }
+    const base = l.actualValue != null ? l.actualValue : l.suggestedValue;
     return {
       exerciseId: l.exerciseId,
       category: l.category,
       metric: l.metric,
       unit: l.unit,
+      calibrated: true,
       currentValue: base,
       nextSuggestedValue: base + rule.defaultIncrement,
       increment: rule.defaultIncrement,

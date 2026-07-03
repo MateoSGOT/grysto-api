@@ -71,6 +71,16 @@ Claves de `data` por recurso (verificadas en controllers):
   ciclo N+1 con cargas progresadas según `constants/progression.js`
   (tabla configurable por categoría: fuerza +2.5 kg, salto +2 cm, tiro +5 %…).
   El plan nunca "termina", cicla indefinidamente.
+- **CALIBRACIÓN SOBRE LA MARCHA** (las cargas): el sistema no puede adivinar
+  cuánto peso/salto/tiro hace un usuario, así que cada carga (`cycles[].loads[]`)
+  nace **SIN CALIBRAR** — `suggestedValue: null`, `calibrated: false` — con su
+  `metric`/`unit` correctos por categoría (eso sí se sabe). La **primera**
+  `confirm-load` de un ejercicio registra su marca real, la fija como base y
+  pone `calibrated: true`. La sobrecarga del ciclo siguiente parte de ese valor
+  REAL; un ejercicio nunca calibrado se mantiene en `null` (no se inventa
+  progresión). `confirm-load`/`adjust-load` validan el valor contra el rango de
+  su métrica (`validateMetricValue` en progression.js). Invariante:
+  `suggestedValue != null ⇔ calibrated`.
 - Reglas free/premium en `userPlan.service.activatePlan`: free no cambia de
   plan (salvo que el actual sea `recommended`); abandonar es premium-only.
 - Al verificar email se auto-recomienda un plan por match-score contra el
@@ -119,11 +129,12 @@ Crea 5 ejercicios + 5 rutinas + plan semanal de 7 días variados y lo activa.
 
 ## Deuda conocida (no repetir, no ignorar)
 
-1. **Bug de cargas iniciales**: `baseValueFromEntry` (userPlan.service)
-   deriva el valor base de seconds→reps→sets, pero la métrica viene de la
-   categoría — un ejercicio de fuerza con `reps: 8` produce "8 kg". La rutina
-   no tiene campo de peso. Plan de arreglo: **día de calibración** (el primer
-   ciclo registra valores reales del usuario vía confirm-load).
+1. ~~**Bug de cargas iniciales**~~ **RESUELTO** (calibración sobre la marcha):
+   `baseValueFromEntry` fue eliminado. Las cargas ya no derivan de reps/sets;
+   nacen sin calibrar (`suggestedValue: null`, `calibrated: false`) y se
+   calibran con la marca real del usuario en la primera `confirm-load`. Ver
+   "CALIBRACIÓN SOBRE LA MARCHA" arriba. **Requiere** el validator de Atlas de
+   `userPlans` actualizado (suggestedValue nullable + campo `calibrated`).
 2. **Progresión lineal infinita**: sin tope, sin deload, sin regla de fallo.
    +5 %/semana de precisión supera el 100 %.
 3. **Modelos sin usar**: `WorkoutHistory` (crítico: confirm-day/confirm-load

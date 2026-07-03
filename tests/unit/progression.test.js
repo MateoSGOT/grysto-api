@@ -7,6 +7,8 @@
 const {
   getProgressionRule,
   GENERIC_RULE,
+  getMetricBounds,
+  validateMetricValue,
 } = require('../../src/constants/progression');
 
 describe('getProgressionRule', () => {
@@ -40,5 +42,44 @@ describe('getProgressionRule', () => {
     const agilidad = getProgressionRule('agilidad');
     expect(fuerza.defaultIncrement).not.toBe(agilidad.defaultIncrement);
     expect(fuerza.metric).not.toBe(agilidad.metric);
+  });
+});
+
+describe('getMetricBounds', () => {
+  it('devuelve el rango de peso (kg)', () => {
+    const b = getMetricBounds('peso');
+    expect(b.min).toBe(0);
+    expect(b.max).toBe(500);
+    expect(b.exclusiveMin).toBe(true);
+  });
+
+  it('cae al rango por defecto (repeticiones) si la métrica es desconocida', () => {
+    expect(getMetricBounds('metrica_inexistente')).toEqual(getMetricBounds('repeticiones'));
+  });
+});
+
+describe('validateMetricValue', () => {
+  it('acepta un peso real razonable', () => {
+    expect(validateMetricValue('peso', 50).ok).toBe(true);
+  });
+
+  it('rechaza peso 0 o negativo (mín exclusivo)', () => {
+    expect(validateMetricValue('peso', 0).ok).toBe(false);
+    expect(validateMetricValue('peso', -5).ok).toBe(false);
+  });
+
+  it('rechaza un peso imposible por encima del máximo', () => {
+    expect(validateMetricValue('peso', 999).ok).toBe(false);
+  });
+
+  it('precisión (%) acepta 0 y 100 pero no 101', () => {
+    expect(validateMetricValue('precision', 0).ok).toBe(true);
+    expect(validateMetricValue('precision', 100).ok).toBe(true);
+    expect(validateMetricValue('precision', 101).ok).toBe(false);
+  });
+
+  it('rechaza valores no numéricos', () => {
+    expect(validateMetricValue('peso', NaN).ok).toBe(false);
+    expect(validateMetricValue('peso', 'muchos').ok).toBe(false);
   });
 });

@@ -29,7 +29,15 @@ const dayProgressSchema = new mongoose.Schema(
   { _id: false }
 );
 
-/** Carga de un ejercicio en un ciclo (sobrecarga progresiva). */
+/**
+ * Carga de un ejercicio en un ciclo (sobrecarga progresiva).
+ *
+ * CALIBRACIÓN SOBRE LA MARCHA: el sistema no puede adivinar cuánto peso
+ * levanta o salta un usuario, así que la carga nace SIN CALIBRAR
+ * (`suggestedValue: null`, `calibrated: false`). La primera vez que el usuario
+ * registra su valor real (confirm-load), ese valor se vuelve la base y
+ * `calibrated` pasa a true. Invariante: `suggestedValue != null ⇔ calibrated`.
+ */
 const loadSchema = new mongoose.Schema(
   {
     exerciseId: {
@@ -38,11 +46,14 @@ const loadSchema = new mongoose.Schema(
       required: true,
     },
     category: { type: String, required: true },
-    suggestedValue: { type: Number, required: true },
+    // null = sin calibrar todavía (no inventamos un valor falso).
+    suggestedValue: { type: Number, default: null },
     actualValue: { type: Number, default: null },
     metric: { type: String, required: true },
     unit: { type: String, required: true },
     confirmed: { type: Boolean, default: false },
+    // El usuario ya registró su marca real → hay una base sobre la que progresar.
+    calibrated: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -141,10 +152,12 @@ userPlanSchema.methods.getCurrentCycle = function getCurrentCycle() {
 
 /**
  * Registra el valor real que hizo el usuario para un ejercicio en el ciclo
- * actual. Muta en memoria; el caller debe persistir con `save()`.
+ * actual. Si la carga aún NO estaba calibrada, esta es su calibración: el
+ * valor real medido se vuelve la base sugerida y `calibrated` pasa a true.
+ * Muta en memoria; el caller debe persistir con `save()`.
  *
  * @param {mongoose.Types.ObjectId|string} exerciseId - Ejercicio.
- * @param {number} actualValue - Valor real realizado.
+ * @param {number} actualValue - Valor real realizado/medido.
  * @returns {Object|null} La carga actualizada, o null si no existe.
  */
 userPlanSchema.methods.confirmLoad = function confirmLoad(exerciseId, actualValue) {
@@ -156,6 +169,12 @@ userPlanSchema.methods.confirmLoad = function confirmLoad(exerciseId, actualValu
   if (!load) return null;
   load.actualValue = actualValue;
   load.confirmed = true;
+  // Primera vez: calibración. El valor real medido es la base a partir de la
+  // cual progresarán los ciclos siguientes.
+  if (!load.calibrated) {
+    load.calibrated = true;
+    load.suggestedValue = actualValue;
+  }
   return load;
 };
 
@@ -173,9 +192,24 @@ userPlanSchema.methods.startNewCycle = function startNewCycle() {
 
   const prevLoads = current ? current.loads : [];
   const nextLoads = prevLoads.map((l) => {
+    // Nunca calibrado → el usuario jamás registró su marca: NO inventamos
+    // progresión. La carga sigue sin calibrar en el ciclo nuevo.
+    if (!l.calibrated) {
+      return {
+        exerciseId: l.exerciseId,
+        category: l.category,
+        suggestedValue: null,
+        actualValue: null,
+        metric: l.metric,
+        unit: l.unit,
+        confirmed: false,
+        calibrated: false,
+      };
+    }
+    // Calibrado → progresa desde el valor REAL (actualValue si lo confirmó este
+    // ciclo, si no la base calibrada) más el incremento de la categoría.
     const rule = getProgressionRule(l.category);
-    const base =
-      l.confirmed && l.actualValue != null ? l.actualValue : l.suggestedValue;
+    const base = l.actualValue != null ? l.actualValue : l.suggestedValue;
     return {
       exerciseId: l.exerciseId,
       category: l.category,
@@ -184,6 +218,7 @@ userPlanSchema.methods.startNewCycle = function startNewCycle() {
       metric: l.metric,
       unit: l.unit,
       confirmed: false,
+      calibrated: true,
     };
   });
 

@@ -90,8 +90,62 @@ function getProgressionRule(exerciseCategory) {
   return PROGRESSION_RULES[exerciseCategory] || GENERIC_RULE;
 }
 
+/**
+ * Rangos razonables por MÉTRICA para validar el valor REAL que registra el
+ * usuario al calibrar (confirm-load). Evita cargas absurdas (0, negativas o
+ * imposibles) que contaminarían la sobrecarga de los ciclos siguientes.
+ *
+ * @type {Object<string, { min: number, max: number, exclusiveMin: boolean, label: string }>}
+ */
+const METRIC_BOUNDS = Object.freeze({
+  peso: { min: 0, max: 500, exclusiveMin: true, label: 'peso (kg)' },
+  altura: { min: 0, max: 300, exclusiveMin: true, label: 'altura (cm)' },
+  velocidad: { min: 0, max: 600, exclusiveMin: true, label: 'tiempo (seg)' },
+  precision: { min: 0, max: 100, exclusiveMin: false, label: 'precisión (%)' },
+  repeticiones: { min: 0, max: 1000, exclusiveMin: true, label: 'repeticiones' },
+});
+
+/** Rango por defecto (métrica desconocida): trata como repeticiones. */
+const DEFAULT_BOUNDS = METRIC_BOUNDS.repeticiones;
+
+/**
+ * Devuelve los límites de una métrica (o el default si no está mapeada).
+ *
+ * @param {string} metric - Métrica (peso|altura|velocidad|precision|repeticiones).
+ * @returns {{ min: number, max: number, exclusiveMin: boolean, label: string }} Límites.
+ */
+function getMetricBounds(metric) {
+  return METRIC_BOUNDS[metric] || DEFAULT_BOUNDS;
+}
+
+/**
+ * Valida que un valor real esté dentro del rango razonable de su métrica.
+ *
+ * @param {string} metric - Métrica de la carga.
+ * @param {number} value - Valor real a validar.
+ * @returns {{ ok: boolean, message?: string }} Resultado; `message` si falla.
+ */
+function validateMetricValue(metric, value) {
+  const b = getMetricBounds(metric);
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return { ok: false, message: `El valor de ${b.label} debe ser numérico` };
+  }
+  const aboveMin = b.exclusiveMin ? value > b.min : value >= b.min;
+  if (!aboveMin || value > b.max) {
+    const lower = b.exclusiveMin ? `mayor que ${b.min}` : `${b.min} o más`;
+    return {
+      ok: false,
+      message: `El valor de ${b.label} debe ser ${lower} y como máximo ${b.max}`,
+    };
+  }
+  return { ok: true };
+}
+
 module.exports = Object.freeze({
   PROGRESSION_RULES,
   GENERIC_RULE,
   getProgressionRule,
+  METRIC_BOUNDS,
+  getMetricBounds,
+  validateMetricValue,
 });
