@@ -46,10 +46,20 @@ async function shutdown(signal, exitCode = 0) {
 async function bootstrap() {
   await connectDB();
 
-  server = app.listen(config.port, () => {
+  // 0.0.0.0 = todas las interfaces de red (no solo localhost), para que el
+  // server sea alcanzable desde otros dispositivos de la LAN (p. ej. un
+  // celular por WiFi apuntando a la IP de esta PC).
+  const HOST = '0.0.0.0';
+  server = app.listen(config.port, HOST, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `✓ [server] GRYSTO API en http://localhost:${config.port}/api/v1 (${config.nodeEnv})`
+      `✓ [server] GRYSTO API escuchando en ${HOST}:${config.port} (${config.nodeEnv})`
+    );
+    // eslint-disable-next-line no-console
+    console.log(`  · local:   http://localhost:${config.port}/api/v1`);
+    // eslint-disable-next-line no-console
+    console.log(
+      `  · red LAN: http://<IP-de-esta-PC>:${config.port}/api/v1  (dispositivo físico)`
     );
   });
 }
