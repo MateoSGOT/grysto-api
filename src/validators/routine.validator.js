@@ -32,17 +32,31 @@ function enumField(values, label) {
 }
 
 /** Sub-ejercicio dentro de una rutina. */
-const routineExerciseSchema = z.object({
-  exerciseId: z
-    .string({ message: 'exerciseId es obligatorio' })
-    .regex(OBJECT_ID_REGEX, 'exerciseId no es un ObjectId válido'),
-  sets: z.number().int().positive().nullable().optional(),
-  reps: z.string().trim().min(1).nullable().optional(),
-  seconds: z.number().int().positive().nullable().optional(),
-  restSeconds: z.number().int().nonnegative().nullable().optional(),
-  order: z.number({ message: 'order es obligatorio' }).int().min(1, 'order debe ser ≥ 1'),
-  notes: z.string().trim().max(300).nullable().optional(),
-});
+const routineExerciseSchema = z
+  .object({
+    exerciseId: z
+      .string({ message: 'exerciseId es obligatorio' })
+      .regex(OBJECT_ID_REGEX, 'exerciseId no es un ObjectId válido'),
+    sets: z.number().int().positive().nullable().optional(),
+    reps: z.string().trim().min(1).nullable().optional(),
+    seconds: z.number().int().positive().nullable().optional(),
+    restSeconds: z.number().int().nonnegative().nullable().optional(),
+    order: z.number({ message: 'order es obligatorio' }).int().min(1, 'order debe ser ≥ 1'),
+    notes: z.string().trim().max(300).nullable().optional(),
+  })
+  // A LO SUMO UNO de reps/seconds: un ejercicio es POR REPS (reps) o POR TIEMPO
+  // (seconds), nunca ambos. Permite solo uno o ninguno (no rompe entradas que
+  // solo llevan `sets`). El discriminador de tipo del frontend depende de esto.
+  .superRefine((val, ctx) => {
+    if (val.reps != null && val.seconds != null) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Un ejercicio no puede tener reps y seconds a la vez: usa reps (por reps) o seconds (por tiempo), no ambos.',
+        path: ['seconds'],
+      });
+    }
+  });
 
 /** Schema de creación de rutina. */
 const createRoutineSchema = z.object({

@@ -61,6 +61,40 @@ describe('Routines — escritura (solo admin)', () => {
     expect(res.body.message).toContain('Ejercicio no encontrado');
   });
 
+  it('rechaza un ejercicio con reps Y seconds a la vez (422)', async () => {
+    const admin = await createAdmin();
+    const exerciseId = await createExerciseAs(admin);
+
+    const res = await request(app)
+      .post(BASE)
+      .set(authHeader(admin))
+      .send(
+        validRoutinePayload(exerciseId, {
+          exercises: [
+            { exerciseId, order: 1, sets: 3, reps: '10', seconds: 30 },
+          ],
+        })
+      );
+
+    expect(res.status).toBe(422);
+  });
+
+  it('acepta un ejercicio POR TIEMPO (solo seconds, sin reps) (201)', async () => {
+    const admin = await createAdmin();
+    const exerciseId = await createExerciseAs(admin);
+
+    const res = await request(app)
+      .post(BASE)
+      .set(authHeader(admin))
+      .send(
+        validRoutinePayload(exerciseId, {
+          exercises: [{ exerciseId, order: 1, sets: 3, seconds: 30, restSeconds: 30 }],
+        })
+      );
+
+    expect(res.status).toBe(201);
+  });
+
   it('un usuario normal NO puede crear/editar/borrar (403)', async () => {
     const admin = await createAdmin();
     const user = await createFreeUser();
