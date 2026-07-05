@@ -1,12 +1,12 @@
-<#
-  seed-test-plan.ps1 — Crea datos de prueba para ver el HOME con datos reales.
+﻿<#
+  seed-test-plan.ps1 - Crea datos de prueba para ver el HOME con datos reales.
 
-  Encadena, vía la API REST:
+  Encadena, via la API REST:
     1. Login admin
-    2. Crea 5 ejercicios (categorías variadas)
+    2. Crea 5 ejercicios (categorias variadas)
     3. Crea 5 rutinas (cada una con un ejercicio)
-    4. Crea un WeeklyPlan de 7 días variados (con 2 días de descanso)
-    5. Login del usuario de la app y ACTIVA el plan para él
+    4. Crea un WeeklyPlan de 7 dias variados (con 2 dias de descanso)
+    5. Login del usuario de la app y ACTIVA el plan para el
 
   Uso (PowerShell, con el backend corriendo en :4000):
     ./scripts/seed-test-plan.ps1 `
@@ -39,11 +39,11 @@ function Post($token, $path, $obj) {
   return Invoke-RestMethod -Uri "$BaseUrl$path" -Method Post -ContentType "application/json" -Headers $headers -Body $body
 }
 
-Write-Host "→ Login admin..." -ForegroundColor Cyan
+Write-Host "-> Login admin..." -ForegroundColor Cyan
 $admin = Login $AdminEmail $AdminPass
 
-# ── 1. Ejercicios ───────────────────────────────────────────────────────────
-Write-Host "→ Creando ejercicios..." -ForegroundColor Cyan
+# --- 1. Ejercicios ----------------------------------------------------------
+Write-Host "-> Creando ejercicios..." -ForegroundColor Cyan
 $video = @{ type = "youtube"; youtubeUrl = "https://youtube.com/watch?v=dQw4w9WgXcQ" }
 
 $exDefs = @(
@@ -62,17 +62,29 @@ foreach ($e in $exDefs) {
   }
   $r = Post $admin "/exercises" $payload
   $exIds[$e.category] = $r.data.exercise._id
-  Write-Host "   ✓ $($e.name) [$($e.category)] → $($r.data.exercise._id)"
+  Write-Host "   - $($e.name) [$($e.category)] -> $($r.data.exercise._id)"
 }
 
-# ── 2. Rutinas ──────────────────────────────────────────────────────────────
-Write-Host "→ Creando rutinas..." -ForegroundColor Cyan
+# --- 2. Rutinas -------------------------------------------------------------
+Write-Host "-> Creando rutinas..." -ForegroundColor Cyan
+# Rutina POR REPS: la entrada del ejercicio lleva 'reps' (String).
 function Routine($title, $cat, $dur, $exId, $sets, $reps) {
   return Post $admin "/routines" @{
     title = $title
-    description = "$title — rutina de prueba generada por el seed."
+    description = "$title - rutina de prueba generada por el seed."
     level = "intermedio"; category = $cat; duration_min = $dur
     exercises = @(@{ exerciseId = $exId; order = 1; sets = $sets; reps = $reps; restSeconds = 60 })
+  }
+}
+
+# Rutina POR TIEMPO: la entrada lleva 'seconds' (Number) en vez de 'reps'.
+# El discriminador es implicito: el frontend detecta tiempo por seconds != null.
+function RoutineTimed($title, $cat, $dur, $exId, $sets, $seconds, $rest) {
+  return Post $admin "/routines" @{
+    title = $title
+    description = "$title - rutina de prueba POR TIEMPO generada por el seed."
+    level = "intermedio"; category = $cat; duration_min = $dur
+    exercises = @(@{ exerciseId = $exId; order = 1; sets = $sets; seconds = $seconds; restSeconds = $rest })
   }
 }
 
@@ -80,14 +92,15 @@ $r1 = Routine "Fuerza tren inferior" "gym"    45 $exIds["fuerza"]      4 "8"
 $r2 = Routine "Manejo de balon"      "cancha" 30 $exIds["dribbling"]   3 "10"
 $r3 = Routine "Pliometria y salto"   "fisico" 40 $exIds["salto"]       4 "6"
 $r4 = Routine "Mecanica de tiro"     "cancha" 35 $exIds["tiro"]        5 "10"
-$r5 = Routine "Acondicionamiento"    "fisico" 25 $exIds["resistencia"] 3 "12"
+# Dia 6 POR TIEMPO: 4 series de 30 s de trabajo + 30 s de descanso.
+$r5 = RoutineTimed "Acondicionamiento" "fisico" 25 $exIds["resistencia"] 4 30 30
 
 $R1 = $r1.data.routine._id; $R2 = $r2.data.routine._id; $R3 = $r3.data.routine._id
 $R4 = $r4.data.routine._id; $R5 = $r5.data.routine._id
-Write-Host "   ✓ 5 rutinas creadas"
+Write-Host "   - 5 rutinas creadas"
 
-# ── 3. WeeklyPlan (7 días variados, 2 de descanso) ──────────────────────────
-Write-Host "→ Creando weekly plan..." -ForegroundColor Cyan
+# --- 3. WeeklyPlan (7 dias variados, 2 de descanso) -------------------------
+Write-Host "-> Creando weekly plan..." -ForegroundColor Cyan
 $plan = Post $admin "/weekly-plans" @{
   name = "Plan de prueba GRYSTO"
   description = "Plan semanal de prueba con dias variados para ver el home."
@@ -104,13 +117,13 @@ $plan = Post $admin "/weekly-plans" @{
   )
 }
 $planId = $plan.data.weeklyPlan._id
-Write-Host "   ✓ WeeklyPlan creado → $planId"
+Write-Host "   - WeeklyPlan creado -> $planId"
 
-# ── 4. Activar el plan para el usuario de la app ────────────────────────────
-Write-Host "→ Login usuario de la app y activando el plan..." -ForegroundColor Cyan
+# --- 4. Activar el plan para el usuario de la app ---------------------------
+Write-Host "-> Login usuario de la app y activando el plan..." -ForegroundColor Cyan
 $user = Login $UserEmail $UserPass
 $act = Post $user "/my-plan/activate" @{ weeklyPlanId = $planId }
-Write-Host "   ✓ Plan activado para $UserEmail (UserPlan $($act.data.plan._id))" -ForegroundColor Green
+Write-Host "   - Plan activado para $UserEmail (UserPlan $($act.data.plan._id))" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "Listo. Abre la app (o recarga el Home) y deberias ver el plan." -ForegroundColor Green
