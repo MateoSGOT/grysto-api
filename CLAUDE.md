@@ -86,6 +86,15 @@ Claves de `data` por recurso (verificadas en controllers):
 - Al verificar email se auto-recomienda un plan por match-score contra el
   `PlayerProfile` (`auth.service.recommendPlan`).
 
+## Ejercicios: video de guía (`demoVideo`)
+
+`Exercise.demoVideo = { type, cloudinaryUrl, youtubeUrl }`. `type` (enum
+`VIDEO_TYPES`) es **`cloudinary`** (MP4 directo, reproductor propio en la app —
+preferido) o **`youtube`** (legacy). El Zod exige la URL que corresponde al
+`type` (`cloudinaryUrl` si cloudinary, `youtubeUrl` si youtube). El validator
+de Atlas de `exercises` **ya permite `cloudinaryUrl`** (`["string","null"]`, no
+en `required`), así que no hay que tocar Atlas para usar MP4.
+
 ## Auth
 
 JWT access (corto) + refresh con **rotación en cada uso y detección de

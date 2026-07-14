@@ -70,6 +70,26 @@ describe('Exercises — escritura (solo admin)', () => {
       true
     );
   });
+
+  it('acepta demoVideo cloudinary con cloudinaryUrl (MP4 directo) (201)', async () => {
+    const admin = await createAdmin();
+    const res = await request(app)
+      .post(BASE)
+      .set(authHeader(admin))
+      .send(
+        validExercisePayload({
+          demoVideo: {
+            type: 'cloudinary',
+            cloudinaryUrl:
+              'https://res.cloudinary.com/duwnri2bf/video/upload/v1/demo.mp4',
+          },
+        })
+      );
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.exercise.demoVideo.type).toBe('cloudinary');
+    expect(res.body.data.exercise.demoVideo.cloudinaryUrl).toContain('.mp4');
+  });
 });
 
 describe('Exercises — lectura y paginación', () => {
