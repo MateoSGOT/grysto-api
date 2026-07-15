@@ -70,6 +70,16 @@ const progressionPreview = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, preview, 'Preview de progresión');
 });
 
+/** POST /my-plan/substitute-exercise — sustituye un ejercicio por uno equivalente. */
+const substituteExercise = asyncHandler(async (req, res) => {
+  const plan = await userPlanService.substituteExercise(
+    req.user.id,
+    req.body.originalExerciseId,
+    req.body.newExerciseId
+  );
+  return ApiResponse.success(res, { plan }, 'Ejercicio sustituido');
+});
+
 module.exports = {
   getActivePlan,
   activatePlan,
@@ -78,4 +88,5 @@ module.exports = {
   confirmLoad,
   adjustLoad,
   progressionPreview,
+  substituteExercise,
 };

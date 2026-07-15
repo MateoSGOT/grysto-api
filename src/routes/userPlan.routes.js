@@ -14,6 +14,7 @@ const {
   confirmDaySchema,
   confirmLoadSchema,
   adjustLoadSchema,
+  substituteExerciseSchema,
 } = require('../validators/userPlan.validator');
 
 const router = express.Router();
@@ -31,6 +32,12 @@ router.post('/confirm-day', validate(confirmDaySchema), userPlanController.confi
 router.post('/confirm-load', validate(confirmLoadSchema), userPlanController.confirmLoad);
 
 router.post('/adjust-load', validate(adjustLoadSchema), userPlanController.adjustLoad);
+
+router.post(
+  '/substitute-exercise',
+  validate(substituteExerciseSchema),
+  userPlanController.substituteExercise
+);
 
 router.get('/progression-preview', userPlanController.progressionPreview);
 

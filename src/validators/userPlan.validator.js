@@ -39,9 +39,16 @@ const adjustLoadSchema = z.object({
   newValue: z.coerce.number({ message: 'newValue debe ser un número' }),
 });
 
+/** Sustituir un ejercicio del plan por otro equivalente (misma categoría). */
+const substituteExerciseSchema = z.object({
+  originalExerciseId: objectId('originalExerciseId'),
+  newExerciseId: objectId('newExerciseId'),
+});
+
 module.exports = {
   activatePlanSchema,
   confirmDaySchema,
   confirmLoadSchema,
   adjustLoadSchema,
+  substituteExerciseSchema,
 };

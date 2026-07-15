@@ -95,6 +95,27 @@ preferido) o **`youtube`** (legacy). El Zod exige la URL que corresponde al
 de Atlas de `exercises` **ya permite `cloudinaryUrl`** (`["string","null"]`, no
 en `required`), así que no hay que tocar Atlas para usar MP4.
 
+## Sustitución de ejercicios (override por usuario)
+
+El usuario puede **sustituir** un ejercicio de su plan por otro **equivalente
+(misma categoría)**. Las rutinas del catálogo son **compartidas** y NO se
+tocan; la sustitución vive como override en el `UserPlan`:
+`substitutions: [{ originalExerciseId, newExerciseId, category, substitutedAt }]`.
+`originalExerciseId` es SIEMPRE el ancla del catálogo; re-sustituir **actualiza**
+`newExerciseId` (no acumula). Al sustituir, el load del ciclo actual del saliente
+se reemplaza por uno del nuevo **SIN CALIBRAR** (metric/unit por categoría);
+ciclos pasados y días completados no se tocan.
+
+- `POST /my-plan/substitute-exercise` `{ originalExerciseId, newExerciseId }` →
+  valida existencia (404), **misma categoría** (422) y que el saliente esté en
+  el plan. Devuelve `{ plan }` con `substitutions` y el load nuevo.
+- `GET /exercises/:id/alternatives` → `{ category, alternatives[] }` (mismos de
+  la categoría, excluyéndose). Exercises no tienen gating premium.
+- **Read-side (D.1)**: `routine.service.getById` aplica las sustituciones del
+  usuario autenticado con plan activo — `GET /routines/:id` devuelve el
+  sustituto (la prescripción sets/reps se mantiene). Acepta
+  `{ applySubstitutions: false }` para un futuro "explorar catálogo".
+
 ## Auth
 
 JWT access (corto) + refresh con **rotación en cada uso y detección de

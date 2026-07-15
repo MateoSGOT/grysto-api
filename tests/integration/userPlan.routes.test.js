@@ -334,3 +334,124 @@ describe('UserPlans — ciclos y sobrecarga progresiva', () => {
     expect(mine.body.data.plan.currentCycle).toBe(1);
   });
 });
+
+/**
+ * Crea un ejercicio vía API (admin) y devuelve su id.
+ *
+ * @param {import('mongoose').Document} admin - Admin.
+ * @param {Object} overrides - Overrides del payload (name, category…).
+ * @returns {Promise<string>} Id del ejercicio.
+ */
+async function createExercise(admin, overrides) {
+  const res = await request(app)
+    .post('/api/v1/exercises')
+    .set(authHeader(admin))
+    .send(validExercisePayload(overrides));
+  return res.body.data.exercise._id;
+}
+
+describe('UserPlans — sustitución de ejercicios', () => {
+  it('sustituye por uno de la MISMA categoría (200): override registrado y load sin calibrar', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin); // ejercicio fuerza
+    const planId = await seedWeeklyPlan(admin, routineId);
+    const user = await createFreeUser();
+    const { exerciseId: original } = await activateAndGetFirstLoad(user, planId);
+    const alt = await createExercise(admin, { name: 'Peso muerto', category: 'fuerza' });
+
+    const res = await request(app)
+      .post(`${BASE}/substitute-exercise`)
+      .set(authHeader(user))
+      .send({ originalExerciseId: original, newExerciseId: alt });
+
+    expect(res.status).toBe(200);
+    const plan = res.body.data.plan;
+    // Override registrado (ancla = original del catálogo).
+    expect(
+      plan.substitutions.some(
+        (s) => s.originalExerciseId === original && s.newExerciseId === alt
+      )
+    ).toBe(true);
+    // Load del nuevo, SIN CALIBRAR; el del viejo ya no está.
+    const loads = plan.currentCycleData.loads;
+    const newLoad = loads.find((l) => l.exerciseId === alt);
+    expect(newLoad).toBeDefined();
+    expect(newLoad.calibrated).toBe(false);
+    expect(newLoad.suggestedValue).toBeNull();
+    expect(loads.some((l) => l.exerciseId === original)).toBe(false);
+  });
+
+  it('rechaza sustituir por OTRA categoría (422)', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planId = await seedWeeklyPlan(admin, routineId);
+    const user = await createFreeUser();
+    const { exerciseId: original } = await activateAndGetFirstLoad(user, planId);
+    const salto = await createExercise(admin, { name: 'Salto profundo', category: 'salto' });
+
+    const res = await request(app)
+      .post(`${BASE}/substitute-exercise`)
+      .set(authHeader(user))
+      .send({ originalExerciseId: original, newExerciseId: salto });
+    expect(res.status).toBe(422);
+  });
+
+  it('rechaza un sustituto inexistente (404)', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planId = await seedWeeklyPlan(admin, routineId);
+    const user = await createFreeUser();
+    const { exerciseId: original } = await activateAndGetFirstLoad(user, planId);
+
+    const res = await request(app)
+      .post(`${BASE}/substitute-exercise`)
+      .set(authHeader(user))
+      .send({
+        originalExerciseId: original,
+        newExerciseId: '0123456789abcdef01234567',
+      });
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /my-plan refleja la sustitución (substitutions + load nuevo sin calibrar)', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planId = await seedWeeklyPlan(admin, routineId);
+    const user = await createFreeUser();
+    const { exerciseId: original } = await activateAndGetFirstLoad(user, planId);
+    const alt = await createExercise(admin, { name: 'Zancadas con barra', category: 'fuerza' });
+
+    await request(app)
+      .post(`${BASE}/substitute-exercise`)
+      .set(authHeader(user))
+      .send({ originalExerciseId: original, newExerciseId: alt });
+
+    const mine = await request(app).get(BASE).set(authHeader(user));
+    expect(mine.body.data.plan.substitutions.some((s) => s.newExerciseId === alt)).toBe(true);
+    const load = mine.body.data.plan.currentCycleData.loads.find((l) => l.exerciseId === alt);
+    expect(load).toBeDefined();
+    expect(load.calibrated).toBe(false);
+  });
+
+  it('la rutina del día (GET /routines/:id) devuelve el sustituto, no el original', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planId = await seedWeeklyPlan(admin, routineId);
+    const user = await createFreeUser();
+    const { exerciseId: original } = await activateAndGetFirstLoad(user, planId);
+    const alt = await createExercise(admin, { name: 'Hip thrust', category: 'fuerza' });
+
+    await request(app)
+      .post(`${BASE}/substitute-exercise`)
+      .set(authHeader(user))
+      .send({ originalExerciseId: original, newExerciseId: alt });
+
+    const routine = await request(app)
+      .get(`/api/v1/routines/${routineId}`)
+      .set(authHeader(user));
+    expect(routine.status).toBe(200);
+    const exIds = routine.body.data.routine.exercises.map((e) => e.exerciseId._id);
+    expect(exIds).toContain(alt); // devuelve el sustituto
+    expect(exIds).not.toContain(original); // ya no el original
+  });
+});

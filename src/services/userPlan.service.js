@@ -383,6 +383,124 @@ async function getProgressionPreview(userId) {
   };
 }
 
+/**
+ * Devuelve los exerciseId EFECTIVOS del plan (los del catálogo con las
+ * sustituciones ya aplicadas), como strings.
+ *
+ * @param {import('mongoose').Document} plan - UserPlan activo.
+ * @returns {Promise<Set<string>>} Ids efectivos.
+ */
+async function effectiveExerciseIds(plan) {
+  const weeklyPlan = await WeeklyPlan.findById(plan.weeklyPlanId).lean();
+  if (!weeklyPlan) return new Set();
+  const routineIds = (weeklyPlan.days || []).flatMap((d) => d.routines || []);
+  const routines = await Routine.find({ _id: { $in: routineIds } })
+    .select('exercises.exerciseId')
+    .lean();
+
+  const subByOriginal = new Map(
+    plan.substitutions.map((s) => [String(s.originalExerciseId), String(s.newExerciseId)])
+  );
+  const effective = new Set();
+  for (const r of routines) {
+    for (const e of r.exercises || []) {
+      const cid = String(e.exerciseId);
+      effective.add(subByOriginal.get(cid) || cid);
+    }
+  }
+  return effective;
+}
+
+/**
+ * Sustituye un ejercicio del plan del usuario por otro EQUIVALENTE (misma
+ * categoría). Permanente: registra un override en el UserPlan (el catálogo,
+ * compartido, no se toca). El load del sustituto nace SIN CALIBRAR. Ciclos
+ * pasados y días completados no se tocan.
+ *
+ * @param {string} userId - Usuario.
+ * @param {string} originalExerciseId - Ejercicio EFECTIVO actual (el que ve el usuario).
+ * @param {string} newExerciseId - Sustituto elegido.
+ * @returns {Promise<Object>} Plan activo con `currentCycleData`.
+ * @throws {ApiError} 404/422 según las reglas.
+ */
+async function substituteExercise(userId, originalExerciseId, newExerciseId) {
+  const plan = await findActivePlan(userId);
+  if (!plan) throw ApiError.notFound('No tienes un plan activo');
+
+  if (String(originalExerciseId) === String(newExerciseId)) {
+    throw ApiError.unprocessable('Ese ya es tu ejercicio actual');
+  }
+
+  const [outgoing, newEx] = await Promise.all([
+    Exercise.findById(originalExerciseId).lean(),
+    Exercise.findById(newExerciseId).lean(),
+  ]);
+  if (!newEx) throw ApiError.notFound('El ejercicio sustituto no existe');
+  if (!outgoing) throw ApiError.notFound('El ejercicio a sustituir no existe');
+
+  // El ejercicio saliente debe estar en el plan del usuario (efectivo).
+  const effective = await effectiveExerciseIds(plan);
+  if (!effective.has(String(originalExerciseId))) {
+    throw ApiError.unprocessable('Ese ejercicio no está en tu plan');
+  }
+
+  // Misma categoría (si no, rompería métrica/progresión).
+  if (newEx.category !== outgoing.category) {
+    throw ApiError.unprocessable(
+      'Solo puedes sustituir por un ejercicio de la misma categoría'
+    );
+  }
+
+  // Ancla = el ejercicio del catálogo. Si el saliente ya era un sustituto,
+  // el ancla es su `originalExerciseId` (re-sustituir ACTUALIZA, no acumula).
+  const existing = plan.substitutions.find(
+    (s) => String(s.newExerciseId) === String(originalExerciseId)
+  );
+  const anchorId = existing
+    ? String(existing.originalExerciseId)
+    : String(originalExerciseId);
+
+  // Actualiza el override: quita el del ancla y, si no es un "revert" al
+  // propio ancla, agrega el nuevo.
+  plan.substitutions = plan.substitutions.filter(
+    (s) => String(s.originalExerciseId) !== anchorId
+  );
+  if (String(newExerciseId) !== anchorId) {
+    plan.substitutions.push({
+      originalExerciseId: anchorId,
+      newExerciseId,
+      category: newEx.category,
+      substitutedAt: new Date(),
+    });
+  }
+
+  // Ajusta los loads del CICLO ACTUAL: fuera el del saliente (y cualquiera del
+  // nuevo, para no duplicar); entra el del nuevo SIN CALIBRAR.
+  const cycle = plan.getCurrentCycle();
+  if (cycle) {
+    for (let i = cycle.loads.length - 1; i >= 0; i -= 1) {
+      const id = String(cycle.loads[i].exerciseId);
+      if (id === String(originalExerciseId) || id === String(newExerciseId)) {
+        cycle.loads.splice(i, 1);
+      }
+    }
+    const rule = getProgressionRule(newEx.category);
+    cycle.loads.push({
+      exerciseId: newExerciseId,
+      category: newEx.category,
+      suggestedValue: null,
+      actualValue: null,
+      metric: rule.metric,
+      unit: rule.unit,
+      confirmed: false,
+      calibrated: false,
+    });
+  }
+
+  await plan.save();
+  return { ...plan.toObject(), currentCycleData: plan.getCurrentCycle() };
+}
+
 module.exports = {
   createUserPlanForUser,
   activatePlan,
@@ -392,4 +510,5 @@ module.exports = {
   confirmLoad,
   adjustSuggestedLoad,
   getProgressionPreview,
+  substituteExercise,
 };

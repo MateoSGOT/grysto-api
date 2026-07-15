@@ -5,8 +5,55 @@
  * acceso premium/preview reutilizable.
  */
 
-const { Routine, Exercise } = require('../models');
+const { Routine, Exercise, UserPlan } = require('../models');
 const ApiError = require('../utils/ApiError');
+const { PLAN_STATUS } = require('../constants/enums');
+
+/** Id (string) del ejercicio de un sub-ejercicio (venga poblado o como ref). */
+function exerciseIdOf(entry) {
+  if (!entry || !entry.exerciseId) return null;
+  return entry.exerciseId._id
+    ? String(entry.exerciseId._id)
+    : String(entry.exerciseId);
+}
+
+/**
+ * Aplica las sustituciones del plan activo del usuario sobre los ejercicios de
+ * una rutina (objeto plano). Donde el catálogo tiene X sustituido por Y,
+ * reemplaza el ejercicio poblado por el de Y — la PRESCRIPCIÓN (sets/reps/…)
+ * se mantiene. Muta `routine.exercises` en sitio.
+ *
+ * @param {Object} routine - Rutina (lean, con exercises poblados).
+ * @param {string} userId - Usuario autenticado.
+ * @returns {Promise<void>}
+ */
+async function applyUserSubstitutions(routine, userId) {
+  const plan = await UserPlan.findOne({ userId, status: PLAN_STATUS.ACTIVE })
+    .select('substitutions')
+    .lean();
+  const subs = (plan && plan.substitutions) || [];
+  if (!subs.length) return;
+
+  const map = new Map(
+    subs.map((s) => [String(s.originalExerciseId), String(s.newExerciseId)])
+  );
+  const needed = [];
+  for (const e of routine.exercises) {
+    const id = exerciseIdOf(e);
+    if (id && map.has(id)) needed.push(map.get(id));
+  }
+  if (!needed.length) return;
+
+  const docs = await Exercise.find({ _id: { $in: needed } }).lean();
+  const byId = new Map(docs.map((d) => [String(d._id), d]));
+  for (const e of routine.exercises) {
+    const id = exerciseIdOf(e);
+    if (id && map.has(id)) {
+      const sub = byId.get(map.get(id));
+      if (sub) e.exerciseId = sub; // solo cambia el ejercicio, no la prescripción
+    }
+  }
+}
 
 /**
  * Verifica que todos los exerciseId referenciados existan en la colección.
@@ -78,12 +125,27 @@ async function create(data, adminId) {
  * @returns {Promise<Object>} Rutina (completa o preview).
  * @throws {ApiError} 404 si no existe.
  */
-async function getById(id, user) {
+async function getById(id, user, { applySubstitutions = true } = {}) {
   const routine = await Routine.findById(id)
     .populate('exercises.exerciseId')
     .lean();
   if (!routine) throw ApiError.notFound('Rutina no encontrada');
-  return applyAccessControl(routine, user);
+
+  const controlled = applyAccessControl(routine, user);
+
+  // D.1: aplica las sustituciones del usuario (override sobre el catálogo
+  // compartido). Hoy GET /routines/:id solo se usa en el entrenamiento.
+  // TODO(explorar-catalogo): pasar { applySubstitutions: false } cuando exista
+  // un navegador de catálogo que deba mostrar el ejercicio ORIGINAL.
+  if (
+    applySubstitutions &&
+    user &&
+    controlled.exercises &&
+    controlled.exercises.length
+  ) {
+    await applyUserSubstitutions(controlled, user.id);
+  }
+  return controlled;
 }
 
 /**

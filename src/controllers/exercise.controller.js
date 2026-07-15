@@ -24,6 +24,12 @@ const getById = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, { exercise }, 'Ejercicio obtenido');
 });
 
+/** GET /exercises/:id/alternatives — equivalentes de la misma categoría. */
+const alternatives = asyncHandler(async (req, res) => {
+  const result = await exerciseService.listAlternatives(req.params.id);
+  return ApiResponse.success(res, result, 'Alternativas obtenidas');
+});
+
 /** POST /exercises — crea (admin). */
 const create = asyncHandler(async (req, res) => {
   const exercise = await exerciseService.create(req.body);
@@ -42,4 +48,4 @@ const remove = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, null, result.message);
 });
 
-module.exports = { list, getById, create, update, remove };
+module.exports = { list, getById, alternatives, create, update, remove };

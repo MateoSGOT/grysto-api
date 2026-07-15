@@ -58,6 +58,30 @@ const loadSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/**
+ * Sustitución de un ejercicio del plan por otro EQUIVALENTE (misma categoría).
+ * Capa de override POR USUARIO: las rutinas del catálogo son compartidas y NO
+ * se tocan; aquí vive la versión del usuario. `originalExerciseId` es el ancla
+ * del catálogo; re-sustituir ACTUALIZA `newExerciseId` (no acumula capas).
+ */
+const substitutionSchema = new mongoose.Schema(
+  {
+    originalExerciseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Exercise',
+      required: true,
+    },
+    newExerciseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Exercise',
+      required: true,
+    },
+    category: { type: String, required: true },
+    substitutedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 /** Un ciclo semanal: cargas + progreso de los 7 días. */
 const cycleSchema = new mongoose.Schema(
   {
@@ -103,6 +127,8 @@ const userPlanSchema = new mongoose.Schema(
     // Ciclos recurrentes con sobrecarga progresiva.
     currentCycle: { type: Number, default: 1, min: 1 },
     cycles: { type: [cycleSchema], default: [] },
+    // Sustituciones de ejercicios por usuario (override sobre el catálogo).
+    substitutions: { type: [substitutionSchema], default: [] },
   },
   { timestamps: true, versionKey: false }
 );

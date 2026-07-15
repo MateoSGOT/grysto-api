@@ -103,4 +103,27 @@ async function remove(id) {
   return { message: 'Ejercicio eliminado correctamente' };
 }
 
-module.exports = { create, getById, list, update, remove };
+/**
+ * Lista los ejercicios EQUIVALENTES (misma categoría) para sustituir a uno,
+ * excluyéndolo a él mismo. Sirve al frontend para ofrecer solo opciones
+ * válidas de sustitución.
+ *
+ * @param {string} id - Ejercicio de referencia.
+ * @returns {Promise<{ category: string, alternatives: object[] }>}
+ * @throws {ApiError} 404 si el ejercicio no existe.
+ */
+async function listAlternatives(id) {
+  const exercise = await Exercise.findById(id).select('category').lean();
+  if (!exercise) throw ApiError.notFound('Ejercicio no encontrado');
+
+  const alternatives = await Exercise.find({
+    category: exercise.category,
+    _id: { $ne: id },
+  })
+    .sort({ name: 1 })
+    .lean();
+
+  return { category: exercise.category, alternatives };
+}
+
+module.exports = { create, getById, list, update, remove, listAlternatives };

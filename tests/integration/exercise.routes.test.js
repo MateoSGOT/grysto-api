@@ -92,6 +92,34 @@ describe('Exercises — escritura (solo admin)', () => {
   });
 });
 
+describe('Exercises — alternativas (misma categoría)', () => {
+  it('lista solo equivalentes de la misma categoría, excluyendo el propio', async () => {
+    const admin = await createAdmin();
+    const a = await createExerciseAs(admin, { name: 'Sentadilla frontal', category: 'fuerza' });
+    const b = await createExerciseAs(admin, { name: 'Peso muerto rumano', category: 'fuerza' });
+    await createExerciseAs(admin, { name: 'Salto al cajon alto', category: 'salto' });
+
+    const res = await request(app)
+      .get(`${BASE}/${a}/alternatives`)
+      .set(authHeader(admin));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.category).toBe('fuerza');
+    const ids = res.body.data.alternatives.map((e) => e._id);
+    expect(ids).toContain(b);
+    expect(ids).not.toContain(a); // excluye el propio
+    expect(res.body.data.alternatives.every((e) => e.category === 'fuerza')).toBe(true);
+  });
+
+  it('404 si el ejercicio de referencia no existe', async () => {
+    const admin = await createAdmin();
+    const res = await request(app)
+      .get(`${BASE}/0123456789abcdef01234567/alternatives`)
+      .set(authHeader(admin));
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('Exercises — lectura y paginación', () => {
   it('lista paginada con y sin filtros', async () => {
     const admin = await createAdmin();

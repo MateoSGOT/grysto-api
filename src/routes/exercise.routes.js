@@ -34,6 +34,13 @@ router.get(
   exerciseController.getById
 );
 
+router.get(
+  '/:id/alternatives',
+  authenticate,
+  validate(idParamSchema, 'params'),
+  exerciseController.alternatives
+);
+
 router.post(
   '/',
   authenticate,
