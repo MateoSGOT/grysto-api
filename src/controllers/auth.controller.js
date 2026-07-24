@@ -134,6 +134,13 @@ const me = asyncHandler(async (req, res) =>
   ApiResponse.success(res, { user: req.user.getPublicProfile() }, 'OK')
 );
 
+/** DELETE /auth/account — elimina la cuenta (re-autenticación con password). */
+const deleteAccount = asyncHandler(async (req, res) => {
+  const result = await authService.deleteAccount(req.user.id, req.body.password);
+  res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
+  return ApiResponse.success(res, null, result.message);
+});
+
 module.exports = {
   register,
   login,
@@ -143,4 +150,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   me,
+  deleteAccount,
 };

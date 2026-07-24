@@ -126,6 +126,13 @@ const refreshTokenSchema = z.object({
   refreshToken: z.string().trim().min(1).optional(),
 });
 
+/** Schema de eliminación de cuenta: re-autenticación con la contraseña actual. */
+const deleteAccountSchema = z.object({
+  password: z
+    .string({ message: 'La contraseña es obligatoria' })
+    .min(1, 'La contraseña es obligatoria'),
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -133,4 +140,5 @@ module.exports = {
   forgotPasswordSchema,
   resetPasswordSchema,
   refreshTokenSchema,
+  deleteAccountSchema,
 };

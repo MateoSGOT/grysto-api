@@ -9,6 +9,11 @@ const mongoose = require('mongoose');
 const {
   User,
   PlayerProfile,
+  UserPlan,
+  CoachConversation,
+  Subscription,
+  GymInfo,
+  WorkoutHistory,
   EmailVerificationToken,
   PasswordResetToken,
   RefreshToken,
@@ -300,6 +305,48 @@ async function resetPassword(token, newPassword) {
   return { message: 'Contraseña actualizada correctamente' };
 }
 
+/**
+ * Elimina la cuenta del usuario y TODOS sus datos personales de forma atómica
+ * (transacción). Exige re-autenticación con la contraseña actual. El catálogo
+ * compartido (ejercicios/rutinas/planes) NO se toca. Irreversible.
+ *
+ * @param {string} userId - Usuario autenticado.
+ * @param {string} password - Contraseña actual (re-autenticación).
+ * @returns {Promise<{ message: string }>} Confirmación.
+ * @throws {ApiError} 404 si el usuario no existe; 401 si la contraseña no coincide.
+ */
+async function deleteAccount(userId, password) {
+  const user = await User.findById(userId).select('+password');
+  if (!user) throw ApiError.notFound('Usuario no encontrado');
+
+  const ok = await user.comparePassword(password);
+  if (!ok) throw ApiError.unauthorized('Contraseña incorrecta');
+
+  const uid = user._id;
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      // Borra todo lo indexado por userId (NO el catálogo compartido). Las
+      // operaciones de una transacción deben ser SECUENCIALES (no Promise.all:
+      // Mongo no admite operaciones concurrentes en la misma sesión).
+      await PlayerProfile.deleteMany({ userId: uid }, { session });
+      await UserPlan.deleteMany({ userId: uid }, { session });
+      await CoachConversation.deleteMany({ userId: uid }, { session });
+      await Subscription.deleteMany({ userId: uid }, { session });
+      await GymInfo.deleteMany({ userId: uid }, { session });
+      await WorkoutHistory.deleteMany({ userId: uid }, { session });
+      await RefreshToken.deleteMany({ userId: uid }, { session });
+      await EmailVerificationToken.deleteMany({ userId: uid }, { session });
+      await PasswordResetToken.deleteMany({ userId: uid }, { session });
+      await User.deleteOne({ _id: uid }, { session });
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return { message: 'Cuenta eliminada correctamente' };
+}
+
 module.exports = {
   register,
   login,
@@ -308,4 +355,5 @@ module.exports = {
   logout,
   forgotPassword,
   resetPassword,
+  deleteAccount,
 };

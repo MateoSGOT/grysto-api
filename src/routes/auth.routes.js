@@ -20,6 +20,7 @@ const {
   forgotPasswordSchema,
   resetPasswordSchema,
   refreshTokenSchema,
+  deleteAccountSchema,
 } = require('../validators/auth.validator');
 
 const router = express.Router();
@@ -61,5 +62,12 @@ router.post(
 );
 
 router.get('/me', authenticate, authController.me);
+
+router.delete(
+  '/account',
+  authenticate,
+  validate(deleteAccountSchema),
+  authController.deleteAccount
+);
 
 module.exports = router;
