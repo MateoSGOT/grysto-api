@@ -12,6 +12,7 @@ const { AI_PROVIDERS, MSG_ROLES } = require('../../constants/enums');
 const { estimateCost } = require('../../constants/aiPricing');
 const { GeminiProvider } = require('./providers/gemini.provider');
 const { AnthropicProvider } = require('./providers/anthropic.provider');
+const { resolveCoachContext } = require('./coachContext');
 
 const TITLE_MAX = 80;
 
@@ -63,14 +64,15 @@ async function getOrCreateActiveConversation(userId) {
  * }>} Respuesta normalizada.
  */
 async function chat(userId, userMessage) {
-  const [conversation, profile] = await Promise.all([
+  const [conversation, profile, planContext] = await Promise.all([
     getOrCreateActiveConversation(userId),
     PlayerProfile.findOne({ userId }),
+    resolveCoachContext(userId),
   ]);
 
-  // Contexto = system prompt + perfil + historial + el nuevo mensaje.
+  // Contexto = system prompt + perfil + plan de hoy + historial + nuevo mensaje.
   const messages = [
-    ...conversation.buildContext(profile),
+    ...conversation.buildContext(profile, planContext),
     { role: MSG_ROLES.USER, content: userMessage },
   ];
 

@@ -73,6 +73,8 @@ const config = Object.freeze({
 
   ai: Object.freeze({
     defaultProvider: optional('AI_DEFAULT_PROVIDER', 'gemini'),
+    // Temperatura de generación: baja para respuestas consistentes y concisas.
+    temperature: Number(optional('AI_TEMPERATURE', '0.6')),
     gemini: Object.freeze({
       apiKey: optional('GEMINI_API_KEY', ''),
       model: optional('GEMINI_MODEL', 'gemini-2.5-flash'),

@@ -129,8 +129,25 @@ coach es por usuario: 20 msg / 15 min).
 Fachada agnóstica al proveedor (`services/ai/ai.service.js` + adapters en
 `providers/`): Gemini (default, free tier) y Anthropic. Costos estimados por
 mensaje (`constants/aiPricing.js`) persistidos en `CoachConversation`.
-Contexto actual = system prompt + PlayerProfile + historial (aún NO incluye
-el plan activo — ver deuda).
+
+**Contexto que recibe el coach** (`CoachConversation.buildContext(profile,
+planContext)`): system prompt + `PlayerProfile` (JSON) + **contexto del plan
+de hoy** + historial completo de la conversación.
+- El **contexto del plan** lo arma `services/ai/coachContext.js`
+  (`resolveCoachContext(userId)` → texto): día de hoy (primer día no completado
+  del ciclo) con su categoría, **los ejercicios concretos de hoy** (nombre +
+  sets×reps o tiempo) y el **estado de cada carga** — distingue CALIBRADA
+  (muestra el valor real) de **SIN REGISTRAR** (aún no calibrada). Tolera plan
+  nulo (devuelve null; el chat no se rompe). Usa los ejercicios del plan tal
+  cual, sin aplicar sustituciones del usuario (mejora pendiente).
+- El **system prompt** (en `CoachConversation.js`) pide respuestas CONCISAS y
+  directas (se lee entre series), mantenerse EN TEMA (básquet/entrenamiento/
+  nutrición deportiva/plan; redirige lo off-topic) y **no inventar cargas sin
+  calibrar** (coherencia con la calibración).
+- `generationConfig.temperature` = `config.ai.temperature` (default 0.6,
+  `AI_TEMPERATURE`) para respuestas consistentes.
+- **Deuda**: el historial se reenvía COMPLETO en cada mensaje (sin ventana) →
+  crece en costo/tokens en conversaciones largas.
 
 ## Comandos
 

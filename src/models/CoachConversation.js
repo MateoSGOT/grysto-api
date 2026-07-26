@@ -11,9 +11,18 @@ const { AI_PROVIDERS, MSG_ROLES, valuesOf } = require('../constants/enums');
 /** Prompt de sistema base del Coach IA de GRYSTO. */
 const GRYSTO_SYSTEM_PROMPT =
   'Eres el Coach IA de Grysto, una app de entrenamiento de baloncesto. ' +
-  'Respondes en español, con tono cercano y motivador. Tu único objetivo es ' +
-  'ayudar al jugador a mejorar su rendimiento en la cancha y en el gym. ' +
-  'Perfil del jugador: ';
+  'Respondes en español, con tono cercano y motivador, como un entrenador experto.\n\n' +
+  'SÉ CONCISO Y DIRECTO: responde en pocas frases, práctico y accionable, sin ' +
+  'relleno ni introducciones largas — el jugador te lee entre series, no tiene ' +
+  'tiempo que perder.\n\n' +
+  'MANTENTE EN TU TEMA: baloncesto, entrenamiento, nutrición deportiva y el ' +
+  'plan de Grysto del jugador. Si te preguntan algo fuera de tema (tareas, ' +
+  'chistes, cosas no relacionadas), redirige con amabilidad: "Estoy aquí para ' +
+  'ayudarte con tu entrenamiento. ¿Qué quieres saber sobre tu plan de hoy?".\n\n' +
+  'USA EL CONTEXTO del perfil y del plan para dar consejos ESPECÍFICOS sobre ' +
+  'los ejercicios de hoy. Si una carga aparece como SIN REGISTRAR, NO inventes ' +
+  'ni afirmes un valor: dile al jugador que aún no ha registrado su marca en ' +
+  'ese ejercicio.';
 
 const messageSchema = new mongoose.Schema(
   {
@@ -61,17 +70,27 @@ coachConversationSchema.index({ userId: 1, lastMessageAt: -1 });
 
 /**
  * Construye el contexto para enviar al proveedor de IA: prompt de sistema
- * con el perfil del jugador seguido del historial de mensajes.
+ * (instrucciones + perfil del jugador + contexto del plan de hoy) seguido del
+ * historial de mensajes.
  *
  * @param {Object} playerProfile - Perfil del jugador (se serializa a JSON).
+ * @param {string|null} [planContext=null] - Bloque de texto con el plan de hoy
+ *   (día, ejercicios, cargas); ver `ai/coachContext`. Null si no tiene plan.
  * @returns {Array<{ role: string, content: string }>} Mensajes para la IA.
  */
 coachConversationSchema.methods.buildContext = function buildContext(
-  playerProfile
+  playerProfile,
+  planContext = null
 ) {
+  const parts = [
+    GRYSTO_SYSTEM_PROMPT,
+    '\n\nPERFIL DEL JUGADOR:\n' + JSON.stringify(playerProfile ?? {}),
+  ];
+  if (planContext) parts.push('\n\n' + planContext);
+
   const systemMessage = {
     role: MSG_ROLES.SYSTEM,
-    content: GRYSTO_SYSTEM_PROMPT + JSON.stringify(playerProfile ?? {}),
+    content: parts.join(''),
   };
   const history = this.messages.map((m) => ({
     role: m.role,

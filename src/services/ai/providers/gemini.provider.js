@@ -47,6 +47,8 @@ class GeminiProvider extends AIProvider {
     if (systemTexts.length > 0) {
       body.systemInstruction = { parts: [{ text: systemTexts.join('\n\n') }] };
     }
+    // Temperatura baja → respuestas más consistentes y concisas (chat de gym).
+    body.generationConfig = { temperature: config.ai.temperature };
     return body;
   }
 

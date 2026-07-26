@@ -6,7 +6,15 @@
 
 const request = require('supertest');
 const app = require('../../src/app');
-const { createUser, authHeader } = require('../fixtures');
+const {
+  createUser,
+  createAdmin,
+  createFreeUser,
+  authHeader,
+  validExercisePayload,
+  validRoutinePayload,
+  validWeeklyPlanPayload,
+} = require('../fixtures');
 
 const BASE = '/api/v1/coach';
 
@@ -99,6 +107,50 @@ describe('Coach — conversaciones', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.conversations.length).toBe(2);
     expect(res.body.data.conversations[0]._id).toBe(newestId);
+  });
+});
+
+describe('Coach — contexto del plan', () => {
+  /** Siembra ejercicio (fuerza) + rutina + plan semanal; devuelve su id. */
+  async function seedPlan(admin) {
+    const ex = await request(app)
+      .post('/api/v1/exercises')
+      .set(authHeader(admin))
+      .send(validExercisePayload({ category: 'fuerza' }));
+    const rt = await request(app)
+      .post('/api/v1/routines')
+      .set(authHeader(admin))
+      .send(validRoutinePayload(ex.body.data.exercise._id));
+    const wp = await request(app)
+      .post('/api/v1/weekly-plans')
+      .set(authHeader(admin))
+      .send(validWeeklyPlanPayload(rt.body.data.routine._id));
+    return wp.body.data.weeklyPlan._id;
+  }
+
+  it('inyecta los ejercicios de hoy y el estado de la carga en el prompt', async () => {
+    const admin = await createAdmin();
+    const weeklyPlanId = await seedPlan(admin);
+
+    const user = await createFreeUser();
+    await request(app)
+      .post('/api/v1/my-plan/activate')
+      .set(authHeader(user))
+      .send({ weeklyPlanId });
+
+    await request(app)
+      .post(`${BASE}/chat`)
+      .set(authHeader(user))
+      .send({ message: '¿cómo hago el ejercicio de hoy?' });
+
+    // El cuerpo enviado a Gemini debe llevar el contexto del plan de hoy.
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    const systemText = body.systemInstruction.parts[0].text;
+    expect(systemText).toContain('Ejercicios de hoy');
+    expect(systemText).toContain('Salto al cajón'); // ejercicio del día 1
+    expect(systemText).toContain('SIN REGISTRAR'); // carga aún sin calibrar
+    // Temperatura baja aplicada a la generación.
+    expect(body.generationConfig.temperature).toBeLessThanOrEqual(0.7);
   });
 });
 
