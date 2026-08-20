@@ -22,6 +22,7 @@ router.get('/health', (req, res) =>
 );
 
 router.use('/auth', require('./auth.routes'));
+router.use('/profile', require('./profile.routes'));
 router.use('/exercises', require('./exercise.routes'));
 router.use('/routines', require('./routine.routes'));
 router.use('/weekly-plans', require('./weeklyPlan.routes'));
