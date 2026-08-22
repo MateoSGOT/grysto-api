@@ -4,8 +4,9 @@
  * @file Lógica de negocio de WeeklyPlans (sin req/res).
  */
 
-const { WeeklyPlan, Routine } = require('../models');
+const { WeeklyPlan, Routine, UserPlan } = require('../models');
 const ApiError = require('../utils/ApiError');
+const { PLAN_STATUS } = require('../constants/enums');
 
 /**
  * Verifica que todos los routineId referenciados en los días existan.
@@ -48,7 +49,10 @@ async function create(data, adminId) {
  * @throws {ApiError} 404 si no existe.
  */
 async function getById(id) {
-  const plan = await WeeklyPlan.findById(id).populate('days.routines');
+  const plan = await WeeklyPlan.findById(id).populate({
+    path: 'days.routines',
+    populate: { path: 'exercises.exerciseId', select: 'name category' },
+  });
   if (!plan) throw ApiError.notFound('Plan semanal no encontrado');
   return plan;
 }
@@ -60,12 +64,17 @@ async function getById(id) {
  * @param {Object} pagination - { page, limit }.
  * @returns {Promise<{ weeklyPlans: object[], total: number, page: number, totalPages: number }>}
  */
-async function list(filters, pagination) {
+async function list(filters, pagination, userId = null) {
   const { page, limit } = pagination;
   const query = {};
-  if (filters.targetPosition) query.targetPosition = { $in: [filters.targetPosition] };
-  if (filters.targetLevel) query.targetLevel = { $in: [filters.targetLevel] };
-  if (filters.targetGoal) query.targetGoal = { $in: [filters.targetGoal] };
+  // Filtros por atributo objetivo. `level`/`goal`/`position` son alias amigables
+  // de los campos array `targetLevel`/`targetGoal`/`targetPosition`.
+  const position = filters.targetPosition || filters.position;
+  const level = filters.targetLevel || filters.level;
+  const goal = filters.targetGoal || filters.goal;
+  if (position) query.targetPosition = { $in: [position] };
+  if (level) query.targetLevel = { $in: [level] };
+  if (goal) query.targetGoal = { $in: [goal] };
   if (typeof filters.isPremium === 'boolean') query.isPremium = filters.isPremium;
   if (typeof filters.isActive === 'boolean') query.isActive = filters.isActive;
 
@@ -78,8 +87,26 @@ async function list(filters, pagination) {
     WeeklyPlan.countDocuments(query),
   ]);
 
+  // `isCurrentPlan` por item: el weeklyPlanId del userplan activo del usuario.
+  let currentWeeklyPlanId = null;
+  if (userId) {
+    const active = await UserPlan.findOne({
+      userId,
+      status: PLAN_STATUS.ACTIVE,
+    })
+      .select('weeklyPlanId')
+      .lean();
+    currentWeeklyPlanId = active?.weeklyPlanId
+      ? String(active.weeklyPlanId)
+      : null;
+  }
+
   return {
-    weeklyPlans,
+    weeklyPlans: weeklyPlans.map((p) => ({
+      ...p,
+      isCurrentPlan:
+        currentWeeklyPlanId != null && String(p._id) === currentWeeklyPlanId,
+    })),
     total,
     page,
     totalPages: Math.max(1, Math.ceil(total / limit)),

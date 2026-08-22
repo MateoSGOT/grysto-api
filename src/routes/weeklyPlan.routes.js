@@ -15,6 +15,7 @@ const {
   createWeeklyPlanSchema,
   updateWeeklyPlanSchema,
   listWeeklyPlansQuerySchema,
+  changePlanSchema,
 } = require('../validators/weeklyPlan.validator');
 const { idParamSchema } = require('../validators/common.validator');
 
@@ -32,6 +33,22 @@ router.get(
   authenticate,
   validate(idParamSchema, 'params'),
   weeklyPlanController.getById
+);
+
+// Cambio de plan conservando cargas (premium). Preview + confirmación.
+router.get(
+  '/:id/change-preview',
+  authenticate,
+  validate(idParamSchema, 'params'),
+  weeklyPlanController.changePreview
+);
+
+router.post(
+  '/:id/change',
+  authenticate,
+  validate(idParamSchema, 'params'),
+  validate(changePlanSchema),
+  weeklyPlanController.changePlan
 );
 
 router.post(

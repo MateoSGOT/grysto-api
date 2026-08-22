@@ -97,6 +97,8 @@ const PLAN_STATUS = Object.freeze({
   COMPLETED: 'completed',
   ABANDONED: 'abandoned',
   PAUSED: 'paused',
+  // Cerrado anticipadamente al cambiar a otro plan (queda como historial).
+  SWITCHED: 'switched',
 });
 
 /** Origen de un plan de usuario. */

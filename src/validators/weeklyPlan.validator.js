@@ -131,11 +131,14 @@ const updateWeeklyPlanSchema = z
     if (val.days) validateDays(val.days, ctx);
   });
 
-/** Schema de query para listado. */
+/** Schema de query para listado. `level`/`goal`/`position` son alias amigables. */
 const listWeeklyPlansQuerySchema = z.object({
   targetPosition: z.string().trim().optional(),
   targetLevel: z.string().trim().optional(),
   targetGoal: z.string().trim().optional(),
+  position: z.string().trim().optional(),
+  level: z.string().trim().optional(),
+  goal: z.string().trim().optional(),
   isPremium: z
     .enum(['true', 'false'])
     .optional()
@@ -148,8 +151,30 @@ const listWeeklyPlansQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+/** Schema del body de cambio de plan: decisiones de carga por categoría. */
+const changePlanSchema = z.object({
+  decisions: z
+    .array(
+      z.object({
+        category: z.string({ message: 'category es obligatorio' }).trim().min(1),
+        decision: z
+          .string({ message: 'decision es obligatorio' })
+          .refine((v) => v === 'carry_load' || v === 'recalibrate', {
+            message: 'decision debe ser "carry_load" o "recalibrate"',
+          }),
+        targetExerciseId: z
+          .string()
+          .regex(OBJECT_ID_REGEX, 'targetExerciseId no es un ObjectId válido')
+          .optional(),
+      }),
+      { message: 'decisions debe ser una lista' }
+    )
+    .default([]),
+});
+
 module.exports = {
   createWeeklyPlanSchema,
   updateWeeklyPlanSchema,
   listWeeklyPlansQuerySchema,
+  changePlanSchema,
 };

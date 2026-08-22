@@ -5,6 +5,7 @@
  * (free/premium), ciclos recurrentes y sobrecarga progresiva.
  */
 
+const mongoose = require('mongoose');
 const {
   User,
   UserPlan,
@@ -501,6 +502,245 @@ async function substituteExercise(userId, originalExerciseId, newExerciseId) {
   return { ...plan.toObject(), currentCycleData: plan.getCurrentCycle() };
 }
 
+// ───────────────────── Cambio de plan (carry-load, premium) ─────────────────
+
+/**
+ * Carga el plan destino con sus ejercicios poblados (nombre + categoría) y los
+ * agrupa por categoría. Dedup por exerciseId dentro de cada categoría.
+ *
+ * @param {string} targetPlanId - WeeklyPlan destino.
+ * @returns {Promise<{ plan: import('mongoose').Document,
+ *   byCategory: Map<string, Array<{ exerciseId: string, name: string }>> }>}
+ * @throws {ApiError} 404 si el plan no existe o está inactivo.
+ */
+async function loadTargetGroupedByCategory(targetPlanId) {
+  const plan = await WeeklyPlan.findById(targetPlanId).populate({
+    path: 'days.routines',
+    populate: { path: 'exercises.exerciseId', select: 'name category' },
+  });
+  if (!plan || !plan.isActive) {
+    throw ApiError.notFound('Plan destino no encontrado');
+  }
+
+  const byCategory = new Map();
+  for (const day of plan.days) {
+    for (const routine of day.routines || []) {
+      for (const ex of routine.exercises || []) {
+        const info = ex.exerciseId; // { _id, name, category } poblado
+        if (!info || !info.category) continue;
+        if (!byCategory.has(info.category)) byCategory.set(info.category, new Map());
+        byCategory.get(info.category).set(String(info._id), info.name);
+      }
+    }
+  }
+
+  // Map → array de { exerciseId, name } por categoría.
+  const grouped = new Map();
+  for (const [cat, exMap] of byCategory) {
+    grouped.set(
+      cat,
+      [...exMap].map(([exerciseId, name]) => ({ exerciseId, name }))
+    );
+  }
+  return { plan, byCategory: grouped };
+}
+
+/**
+ * Valida las precondiciones del cambio de plan y devuelve el contexto común.
+ * Cambio-con-carry-load es EXCLUSIVO de premium.
+ *
+ * @param {string} userId - Usuario.
+ * @param {string} targetPlanId - WeeklyPlan destino.
+ * @returns {Promise<{ active: import('mongoose').Document }>} Plan activo.
+ * @throws {ApiError} 403 no premium; 404 sin plan activo; 400 mismo plan.
+ */
+async function assertChangeAllowed(userId, targetPlanId) {
+  const user = await User.findById(userId);
+  if (!user || !user.isPremiumActive()) {
+    throw ApiError.forbidden(
+      'Cambiar de plan conservando tus cargas es exclusivo de premium'
+    );
+  }
+  const active = await findActivePlan(userId);
+  if (!active) throw ApiError.notFound('No tienes un plan activo');
+  if (String(active.weeklyPlanId) === String(targetPlanId)) {
+    throw ApiError.badRequest('Ese ya es tu plan actual');
+  }
+  return { active };
+}
+
+/**
+ * Preview del cambio: cruza las cargas CALIBRADAS del ciclo actual con los
+ * ejercicios del plan destino, por `category`. El sistema nunca decide el
+ * número: solo expone el dato real para que el usuario elija (carry/recalibrar).
+ *
+ * @param {string} userId - Usuario premium.
+ * @param {string} targetPlanId - WeeklyPlan destino.
+ * @returns {Promise<{ matches: object[], onlyInCurrentPlan: object[], newInTargetPlan: object[] }>}
+ * @throws {ApiError} 403/404/400 según precondiciones.
+ */
+async function changePreview(userId, targetPlanId) {
+  const { active } = await assertChangeAllowed(userId, targetPlanId);
+  const { byCategory: targetByCategory } =
+    await loadTargetGroupedByCategory(targetPlanId);
+
+  const cycle = active.getCurrentCycle();
+  const calibrated = (cycle?.loads || []).filter((l) => l.calibrated);
+
+  // Nombres de los ejercicios calibrados actuales.
+  const currentNames = new Map(
+    (
+      await Exercise.find({ _id: { $in: calibrated.map((l) => l.exerciseId) } })
+        .select('name')
+        .lean()
+    ).map((e) => [String(e._id), e.name])
+  );
+
+  const matches = [];
+  const onlyInCurrentPlan = [];
+  const calibratedCategories = new Set();
+
+  for (const load of calibrated) {
+    calibratedCategories.add(load.category);
+    const targets = targetByCategory.get(load.category);
+    const currentExercise = {
+      exerciseId: String(load.exerciseId),
+      name: currentNames.get(String(load.exerciseId)) || 'Ejercicio',
+      actualValue: load.actualValue,
+      metric: load.metric,
+      unit: load.unit,
+    };
+    if (targets && targets.length > 0) {
+      matches.push({ category: load.category, currentExercise, targetExercises: targets });
+    } else {
+      onlyInCurrentPlan.push({
+        category: load.category,
+        exerciseName: currentExercise.name,
+      });
+    }
+  }
+
+  // Categorías del destino sin carga calibrada previa (informativo).
+  const newInTargetPlan = [];
+  for (const [cat, exs] of targetByCategory) {
+    if (!calibratedCategories.has(cat)) {
+      newInTargetPlan.push({ category: cat, exerciseName: exs[0]?.name || 'Ejercicio' });
+    }
+  }
+
+  return { matches, onlyInCurrentPlan, newInTargetPlan };
+}
+
+/**
+ * Confirma el cambio de plan (transacción). Cierra el ciclo actual, pasa el
+ * userplan a `switched` y crea uno nuevo `active`, aplicando las decisiones de
+ * carga: `carry_load` (con match válido) → lleva el valor real ya confirmado;
+ * el resto → sin calibrar. Atómico: nunca deja dos planes `active`.
+ *
+ * @param {string} userId - Usuario premium.
+ * @param {string} targetPlanId - WeeklyPlan destino.
+ * @param {Array<{ category: string, decision: string, targetExerciseId?: string }>} decisions
+ * @returns {Promise<{ _id: string, status: string, weeklyPlanId: string }>} Nuevo plan.
+ * @throws {ApiError} 403/404/400/422 según el caso.
+ */
+async function changePlan(userId, targetPlanId, decisions = []) {
+  const { active } = await assertChangeAllowed(userId, targetPlanId);
+  const { plan: targetPlan, byCategory: targetByCategory } =
+    await loadTargetGroupedByCategory(targetPlanId);
+
+  // Cargas calibradas actuales, indexadas por categoría.
+  const cycle = active.getCurrentCycle();
+  const calibratedByCategory = new Map(
+    (cycle?.loads || [])
+      .filter((l) => l.calibrated)
+      .map((l) => [l.category, l])
+  );
+
+  // Cargas base del plan destino (todas sin calibrar).
+  const newLoads = await buildInitialLoads(targetPlan);
+  const loadByExerciseId = new Map(newLoads.map((l) => [String(l.exerciseId), l]));
+
+  // Aplica las decisiones de carry_load.
+  for (const dec of decisions) {
+    if (dec.decision !== 'carry_load') continue;
+    const current = calibratedByCategory.get(dec.category);
+    if (!current) continue; // no hay carga calibrada en esa categoría: se ignora
+
+    // Ejercicio destino que recibe la carga. Si hay más de uno, exige elegir.
+    const targets = targetByCategory.get(dec.category) || [];
+    let targetExerciseId = dec.targetExerciseId;
+    if (!targetExerciseId) {
+      if (targets.length === 1) targetExerciseId = targets[0].exerciseId;
+      else if (targets.length > 1) {
+        throw ApiError.unprocessable(
+          `Elige a qué ejercicio llevar la carga de "${dec.category}" (targetExerciseId)`
+        );
+      } else {
+        continue; // la categoría no existe en el destino
+      }
+    }
+
+    const target = loadByExerciseId.get(String(targetExerciseId));
+    if (!target) continue;
+
+    // metric/unit se derivan de la categoría → siempre coinciden dentro de una
+    // misma categoría. Guard defensivo por si eso cambiara (nunca inventar).
+    if (target.metric !== current.metric || target.unit !== current.unit) continue;
+
+    const value = current.actualValue != null ? current.actualValue : current.suggestedValue;
+    if (value == null) continue;
+    target.actualValue = value;
+    target.suggestedValue = value; // base para la progresión futura
+    target.calibrated = true;
+    target.confirmed = true;
+  }
+
+  // Transacción: cierra el actual y crea el nuevo, de forma atómica.
+  const now = new Date();
+  const session = await mongoose.startSession();
+  let created;
+  try {
+    await session.withTransaction(async () => {
+      const current = active.getCurrentCycle();
+      if (current) current.completedAt = now;
+      active.status = PLAN_STATUS.SWITCHED;
+      await active.save({ session });
+
+      const [doc] = await UserPlan.create(
+        [
+          {
+            userId,
+            weeklyPlanId: targetPlan._id,
+            source: PLAN_SOURCE.SELECTED,
+            status: PLAN_STATUS.ACTIVE,
+            startedAt: now,
+            currentCycle: 1,
+            cycles: [
+              {
+                cycleNumber: 1,
+                startedAt: now,
+                completedAt: null,
+                loads: newLoads,
+                daysProgress: freshDaysProgress(),
+              },
+            ],
+          },
+        ],
+        { session }
+      );
+      created = doc;
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return {
+    _id: created._id,
+    status: created.status,
+    weeklyPlanId: created.weeklyPlanId,
+  };
+}
+
 module.exports = {
   createUserPlanForUser,
   activatePlan,
@@ -511,4 +751,6 @@ module.exports = {
   adjustSuggestedLoad,
   getProgressionPreview,
   substituteExercise,
+  changePreview,
+  changePlan,
 };

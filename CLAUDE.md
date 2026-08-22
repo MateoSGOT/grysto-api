@@ -85,6 +85,28 @@ Claves de `data` por recurso (verificadas en controllers):
   plan (salvo que el actual sea `recommended`); abandonar es premium-only.
 - Al verificar email se auto-recomienda un plan por match-score contra el
   `PlayerProfile` (`auth.service.recommendPlan`).
+- **Cambio de plan con carry-load (premium)** — `userPlan.service.changePreview` /
+  `changePlan`, expuestos como `GET /weekly-plans/:id/change-preview` y
+  `POST /weekly-plans/:id/change`. Un usuario acumula VARIOS userplans (uno
+  `active`, el resto historial). Al cambiar: se cruzan por `category` las cargas
+  CALIBRADAS del ciclo actual con los ejercicios del plan destino → el usuario
+  decide por cada match `carry_load` (lleva su valor real ya confirmado:
+  `calibrated:true, confirmed:true`) o `recalibrate` (arranca sin calibrar). El
+  sistema nunca inventa el número. `metric`/`unit` se derivan de la `category`,
+  así que dentro de una categoría siempre coinciden (el guard de mismatch es
+  defensivo/inalcanzable). Transacción (patrón `DELETE /auth/account`): cierra el
+  ciclo actual (`completedAt`), pasa el viejo a `status: 'switched'` y crea el
+  nuevo `active` — atómico, nunca dos `active`. El historial de cargas vive en
+  los `cycles` de los userplans `switched`/`completed` (NO se toca
+  `WorkoutHistory`, que es de sesiones).
+- **⚠️ Atlas**: `userplans.status` ahora usa `'switched'` (nuevo en el enum).
+  **Hay que agregarlo A MANO al validador `$jsonSchema` de `userplans` en
+  Compass** o los writes de cambio de plan fallarán con "Document failed
+  validation" en vivo (los tests usan MongoMemoryReplSet, sin validador).
+- `GET /weekly-plans` acepta filtros `level`/`goal`/`position` (alias de los
+  arrays `targetLevel`/`targetGoal`/`targetPosition`) y agrega `isCurrentPlan`
+  por item. `GET /weekly-plans/:id` puebla `days.routines.exercises.exerciseId`
+  (nombre+categoría) para el detalle/preview.
 
 ## Ejercicios: video de guía (`demoVideo`)
 
