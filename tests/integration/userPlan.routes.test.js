@@ -455,3 +455,45 @@ describe('UserPlans — sustitución de ejercicios', () => {
     expect(exIds).not.toContain(original); // ya no el original
   });
 });
+
+describe('UserPlans — referencia colgante (weekly plan borrado)', () => {
+  it('GET /my-plan marca planUnavailable:true (200) si el weekly plan ya no existe', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planId = await seedWeeklyPlan(admin, routineId);
+    const user = await createFreeUser();
+
+    await request(app)
+      .post(`${BASE}/activate`)
+      .set(authHeader(user))
+      .send({ weeklyPlanId: planId });
+
+    // Simula la referencia colgante: el weekly plan al que apunta el userplan
+    // activo desaparece (borrado real), dejando el weeklyPlanId apuntando a la
+    // nada. Antes esto devolvía un 200 con weeklyPlanId:null silencioso.
+    await WeeklyPlan.findByIdAndDelete(planId);
+
+    const mine = await request(app).get(BASE).set(authHeader(user));
+    expect(mine.status).toBe(200);
+    expect(mine.body.data.plan).not.toBeNull();
+    expect(mine.body.data.plan.planUnavailable).toBe(true);
+    expect(mine.body.data.plan.weeklyPlanId).toBeNull();
+  });
+
+  it('GET /my-plan con weekly plan vigente NO marca planUnavailable', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planId = await seedWeeklyPlan(admin, routineId);
+    const user = await createFreeUser();
+
+    await request(app)
+      .post(`${BASE}/activate`)
+      .set(authHeader(user))
+      .send({ weeklyPlanId: planId });
+
+    const mine = await request(app).get(BASE).set(authHeader(user));
+    expect(mine.status).toBe(200);
+    expect(mine.body.data.plan.planUnavailable).toBe(false);
+    expect(mine.body.data.plan.weeklyPlanId._id).toBe(planId);
+  });
+});

@@ -218,10 +218,23 @@ async function getActivePlan(userId) {
   const plan = await UserPlan.findOne({
     userId,
     status: PLAN_STATUS.ACTIVE,
-  }).populate('weeklyPlanId');
+  });
   if (!plan) return null;
 
-  return { ...plan.toObject(), currentCycleData: plan.getCurrentCycle() };
+  // Referencia colgante: el UserPlan tiene un weeklyPlanId seteado pero el
+  // WeeklyPlan al que apunta ya no existe (borrado / soft-delete). Al poblar,
+  // Mongoose deja el campo en null y se PERDERÍA la señal — por eso capturamos
+  // si había referencia ANTES de poblar. En vez del 200 con weeklyPlanId:null
+  // silencioso, marcamos planUnavailable:true para que el cliente lo maneje.
+  const hadWeeklyPlanRef = plan.weeklyPlanId != null;
+  await plan.populate('weeklyPlanId');
+  const planUnavailable = hadWeeklyPlanRef && plan.weeklyPlanId == null;
+
+  return {
+    ...plan.toObject(),
+    currentCycleData: plan.getCurrentCycle(),
+    planUnavailable,
+  };
 }
 
 /**
