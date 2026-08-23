@@ -155,6 +155,11 @@ describe('UserPlans — reglas de cambio de plan', () => {
       .set(authHeader(premium))
       .send({ weeklyPlanId: planB });
     expect(conflict.status).toBe(409);
+    // El 409 guía al flujo de cambio de plan y es distinguible por API con un
+    // `code` top-level (details queda reservado al detalle de validación).
+    expect(conflict.body.message).toMatch(/flujo de cambio de plan/i);
+    expect(conflict.body.code).toBe('USE_CHANGE_FLOW');
+    expect(conflict.body.details).toBeUndefined();
 
     const abandon = await request(app).post(`${BASE}/abandon`).set(authHeader(premium));
     expect(abandon.status).toBe(200);

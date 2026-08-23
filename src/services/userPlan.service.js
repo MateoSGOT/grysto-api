@@ -153,11 +153,13 @@ async function activatePlan(userId, weeklyPlanId) {
     });
   }
 
-  // Premium con plan activo → debe abandonar explícitamente primero.
+  // Premium con plan activo → hoy el cambio de plan pasa por el flujo dedicado
+  // (change-preview / change), que preserva las cargas calibradas. El mensaje
+  // guía hacia ahí y `code` lo hace distinguible por API.
   if (isPremiumActive) {
     throw ApiError.conflict(
-      'Debes abandonar tu plan actual antes de activar uno nuevo'
-    );
+      'Ya tienes un plan activo. Para cambiarlo, usa el flujo de cambio de plan.'
+    ).withCode('USE_CHANGE_FLOW');
   }
 
   // Free con plan activo: solo puede cambiar si el actual fue recomendado.

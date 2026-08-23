@@ -17,9 +17,26 @@ class ApiError extends Error {
     this.name = 'ApiError';
     this.statusCode = statusCode;
     this.details = details;
+    /**
+     * Código de error legible por máquina (opcional). A diferencia de `details`
+     * —reservado al detalle de validación por campo—, `code` identifica el caso
+     * de negocio para que un consumidor lo distinga sin parsear el mensaje.
+     */
+    this.code = null;
     /** Marca un error esperado, no un bug. */
     this.isOperational = true;
     Error.captureStackTrace(this, this.constructor);
+  }
+
+  /**
+   * Adjunta un código de negocio y devuelve el propio error (encadenable).
+   *
+   * @param {string} code - Código estable (p. ej. 'USE_CHANGE_FLOW').
+   * @returns {ApiError} this.
+   */
+  withCode(code) {
+    this.code = code;
+    return this;
   }
 
   /**

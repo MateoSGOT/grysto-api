@@ -98,6 +98,11 @@ function errorMiddleware(err, req, res, next) {
     message: apiError.message,
   };
 
+  // Código de negocio legible por máquina, si el error lo trae (p. ej.
+  // 'USE_CHANGE_FLOW'). Top-level para que sea consistente entre endpoints,
+  // sin mezclarse con la forma de `details` (detalle de validación por campo).
+  if (apiError.code) body.code = apiError.code;
+
   // No exponer `details` internos en errores 5xx en producción (p. ej. el
   // detalle del proveedor de IA). En 4xx (validación, etc.) sí son útiles al cliente.
   const hideDetails = config.isProduction && isServerError;
