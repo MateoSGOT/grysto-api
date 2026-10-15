@@ -1,0 +1,61 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "userId",
+      "purpose",
+      "codeHash",
+      "expiresAt",
+      "attempts",
+      "usedAt",
+      "invalidatedAt",
+      "purgeAt",
+      "_id",
+      "createdAt"
+    ],
+    "properties": {
+      "userId": {
+        "bsonType": "objectId"
+      },
+      "purpose": {
+        "bsonType": "string",
+        "enum": [
+          "email_verification",
+          "password_reset"
+        ]
+      },
+      "codeHash": {
+        "bsonType": "string"
+      },
+      "expiresAt": {
+        "bsonType": "date"
+      },
+      "attempts": {
+        "bsonType": "number",
+        "minimum": 0
+      },
+      "usedAt": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "invalidatedAt": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "purgeAt": {
+        "bsonType": "date"
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

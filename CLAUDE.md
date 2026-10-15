@@ -225,14 +225,52 @@ npm run dev        # nodemon, escucha en 0.0.0.0:4000, API bajo /api/v1
 npm test           # Jest (integración + unit)
 ```
 
-Seed de datos de prueba (backend corriendo; requiere admin y usuario
-verificados):
+Seed idempotente (directo a la DB vía Mongoose; ver "Base de datos" abajo):
 
 ```powershell
-./scripts/seed-test-plan.ps1 -AdminEmail "..." -AdminPass "..." -UserEmail "..." -UserPass "..."
+$env:SEED_ADMIN_PASSWORD="..."; $env:SEED_DEMO_PASSWORD="..."; node scripts/seed.js --dry-run
+$env:SEED_ADMIN_PASSWORD="..."; $env:SEED_DEMO_PASSWORD="..."; node scripts/seed.js
 ```
 
-Crea 5 ejercicios + 5 rutinas + plan semanal de 7 días variados y lo activa.
+Crea admin + demo (con perfiles), 5 ejercicios + 5 rutinas + el plan semanal
+de 7 días, y activa el plan al demo.
+
+## Base de datos: validadores, índices y reconstrucción
+
+**Fuente de verdad de los validadores de Atlas: `db/validators/<coleccion>.json`**
+(uno por colección, con el nombre REAL de la colección). Se aplican A MANO en
+Compass (Validation → strict / error). Nunca desde código.
+
+- Se GENERAN desde los schemas de Mongoose: `node scripts/generate-validators.js`
+  (offline, no necesita .env). Estilo: `additionalProperties: false`, numéricos
+  `"number"`, no requeridos `[tipo, "null"]`, timestamps/`__v` declarados si el
+  schema los escribe (`__v` solo en la raíz; hoy todos tienen `versionKey: false`).
+- Tras cambiar un schema: regenerar, revisar el diff en git y aplicar el nuevo
+  validador en Compass ANTES de desplegar.
+- Guardas en tests: `tests/db.setup.js` aplica estos validadores (strict) a la DB
+  en memoria → toda la suite falla si un write los viola; y
+  `atlasValidators.test.js` corre `--check` (falla si los archivos se
+  desincronizan de los schemas).
+- Índices: los crea Mongoose al arrancar (`autoIndex`/`autoCreate` en default
+  `true`). EXCEPCIÓN: el único parcial de plan activo NO está en el schema y se
+  crea a mano (ver abajo).
+
+**Seed idempotente**: `scripts/seed.js` + catálogo en `db/seed/catalog.js`
+(clave natural: ejercicio `name`, rutina `title`, plan `name`). Crea el admin
+`mateo@test.com` (con perfil), el demo `workout.demo@test.com` (perfil + plan 1 activo) y el
+catálogo. Contraseñas SOLO por env (`SEED_ADMIN_PASSWORD`, `SEED_DEMO_PASSWORD`);
+si el usuario ya existe no se toca su contraseña. `--dry-run` no escribe.
+Las URLs de video (Cloudinary) se pegan en `db/seed/catalog.js`; sin URL el
+ejercicio queda sin video (placeholder en la app).
+
+**Reconstrucción desde cero** (si el cluster se pierde):
+1. Compass: crear las colecciones de `db/validators/` en la DB de `DB_NAME`
+   (default `grysto_db`), cada una con su validador (strict / error).
+2. `npm run dev` una vez → Mongoose crea los índices. Verificar en Compass.
+3. Índice único parcial (a mano):
+   `db.userPlans.createIndex({ userId: 1 }, { unique: true, partialFilterExpression: { status: "active" }, name: "uniq_active_plan_per_user" })`
+4. `node scripts/seed.js --dry-run` → `node scripts/seed.js` (con las env de
+   contraseña). Correrlo de nuevo debe decir `0 creados, 0 actualizados`.
 
 ## Reglas de trabajo
 

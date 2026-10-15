@@ -1,0 +1,107 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "userId",
+      "status",
+      "plan",
+      "priceUSD",
+      "billingCycle",
+      "startDate",
+      "endDate",
+      "cancelledAt",
+      "paymentMethod",
+      "gatewayCustomerId",
+      "gatewaySubscriptionId",
+      "lastPaymentDate",
+      "nextBillingDate",
+      "_id",
+      "createdAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "userId": {
+        "bsonType": "objectId"
+      },
+      "status": {
+        "bsonType": "string",
+        "enum": [
+          "active",
+          "cancelled",
+          "expired",
+          "trial",
+          "past_due"
+        ]
+      },
+      "plan": {
+        "bsonType": "string"
+      },
+      "priceUSD": {
+        "bsonType": "number",
+        "minimum": 0
+      },
+      "billingCycle": {
+        "bsonType": "string",
+        "enum": [
+          "monthly",
+          "yearly"
+        ]
+      },
+      "startDate": {
+        "bsonType": "date"
+      },
+      "endDate": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "cancelledAt": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "paymentMethod": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "gatewayCustomerId": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "gatewaySubscriptionId": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "lastPaymentDate": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "nextBillingDate": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

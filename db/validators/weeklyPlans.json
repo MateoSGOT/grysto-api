@@ -1,0 +1,111 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "name",
+      "description",
+      "targetPosition",
+      "targetLevel",
+      "targetGoal",
+      "isPremium",
+      "days",
+      "coverImage",
+      "createdBy",
+      "isActive",
+      "_id",
+      "createdAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "name": {
+        "bsonType": "string",
+        "minLength": 3,
+        "maxLength": 100
+      },
+      "description": {
+        "bsonType": "string",
+        "minLength": 10,
+        "maxLength": 500
+      },
+      "targetPosition": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "targetLevel": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "targetGoal": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "isPremium": {
+        "bsonType": "bool"
+      },
+      "days": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "object",
+          "required": [
+            "dayNumber",
+            "category",
+            "title",
+            "isRestDay",
+            "routines"
+          ],
+          "properties": {
+            "dayNumber": {
+              "bsonType": "number",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "category": {
+              "bsonType": "string"
+            },
+            "title": {
+              "bsonType": "string"
+            },
+            "isRestDay": {
+              "bsonType": "bool"
+            },
+            "routines": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "objectId"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "coverImage": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "createdBy": {
+        "bsonType": "objectId"
+      },
+      "isActive": {
+        "bsonType": "bool"
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

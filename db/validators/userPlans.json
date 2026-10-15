@@ -1,0 +1,253 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "userId",
+      "weeklyPlanId",
+      "isAIGenerated",
+      "aiGeneratedContent",
+      "source",
+      "status",
+      "startedAt",
+      "endsAt",
+      "progress",
+      "completionPercentage",
+      "currentCycle",
+      "cycles",
+      "substitutions",
+      "_id",
+      "createdAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "userId": {
+        "bsonType": "objectId"
+      },
+      "weeklyPlanId": {
+        "bsonType": [
+          "objectId",
+          "null"
+        ]
+      },
+      "isAIGenerated": {
+        "bsonType": "bool"
+      },
+      "aiGeneratedContent": {},
+      "source": {
+        "bsonType": "string",
+        "enum": [
+          "recommended_after_questionnaire",
+          "user_selected",
+          "ai_generated"
+        ]
+      },
+      "status": {
+        "bsonType": "string",
+        "enum": [
+          "active",
+          "completed",
+          "abandoned",
+          "paused",
+          "switched"
+        ]
+      },
+      "startedAt": {
+        "bsonType": "date"
+      },
+      "endsAt": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "progress": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "object",
+          "required": [
+            "dayNumber",
+            "completed",
+            "completedAt",
+            "skipped"
+          ],
+          "properties": {
+            "dayNumber": {
+              "bsonType": "number",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "completed": {
+              "bsonType": "bool"
+            },
+            "completedAt": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "skipped": {
+              "bsonType": "bool"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "completionPercentage": {
+        "bsonType": "number",
+        "minimum": 0,
+        "maximum": 100
+      },
+      "currentCycle": {
+        "bsonType": "number",
+        "minimum": 1
+      },
+      "cycles": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "object",
+          "required": [
+            "cycleNumber",
+            "startedAt",
+            "completedAt",
+            "loads",
+            "daysProgress"
+          ],
+          "properties": {
+            "cycleNumber": {
+              "bsonType": "number",
+              "minimum": 1
+            },
+            "startedAt": {
+              "bsonType": "date"
+            },
+            "completedAt": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "loads": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "exerciseId",
+                  "category",
+                  "suggestedValue",
+                  "actualValue",
+                  "metric",
+                  "unit",
+                  "confirmed",
+                  "calibrated"
+                ],
+                "properties": {
+                  "exerciseId": {
+                    "bsonType": "objectId"
+                  },
+                  "category": {
+                    "bsonType": "string"
+                  },
+                  "suggestedValue": {
+                    "bsonType": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "actualValue": {
+                    "bsonType": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "metric": {
+                    "bsonType": "string"
+                  },
+                  "unit": {
+                    "bsonType": "string"
+                  },
+                  "confirmed": {
+                    "bsonType": "bool"
+                  },
+                  "calibrated": {
+                    "bsonType": "bool"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "daysProgress": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "dayNumber",
+                  "completed",
+                  "completedAt",
+                  "skipped"
+                ],
+                "properties": {
+                  "dayNumber": {
+                    "bsonType": "number",
+                    "minimum": 1,
+                    "maximum": 7
+                  },
+                  "completed": {
+                    "bsonType": "bool"
+                  },
+                  "completedAt": {
+                    "bsonType": [
+                      "date",
+                      "null"
+                    ]
+                  },
+                  "skipped": {
+                    "bsonType": "bool"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "substitutions": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "object",
+          "required": [
+            "originalExerciseId",
+            "newExerciseId",
+            "category",
+            "substitutedAt"
+          ],
+          "properties": {
+            "originalExerciseId": {
+              "bsonType": "objectId"
+            },
+            "newExerciseId": {
+              "bsonType": "objectId"
+            },
+            "category": {
+              "bsonType": "string"
+            },
+            "substitutedAt": {
+              "bsonType": "date"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

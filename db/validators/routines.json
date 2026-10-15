@@ -1,0 +1,137 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "title",
+      "description",
+      "level",
+      "category",
+      "targetPositions",
+      "duration_min",
+      "isPremium",
+      "exercises",
+      "coverImage",
+      "createdBy",
+      "_id",
+      "createdAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "title": {
+        "bsonType": "string",
+        "minLength": 3,
+        "maxLength": 100
+      },
+      "description": {
+        "bsonType": "string",
+        "minLength": 10,
+        "maxLength": 500
+      },
+      "level": {
+        "bsonType": "string",
+        "enum": [
+          "principiante",
+          "intermedio",
+          "avanzado"
+        ]
+      },
+      "category": {
+        "bsonType": "string",
+        "enum": [
+          "gym",
+          "cancha",
+          "fisico",
+          "tecnica",
+          "calentamiento"
+        ]
+      },
+      "targetPositions": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "duration_min": {
+        "bsonType": "number",
+        "minimum": 5,
+        "maximum": 180
+      },
+      "isPremium": {
+        "bsonType": "bool"
+      },
+      "exercises": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "object",
+          "required": [
+            "exerciseId",
+            "sets",
+            "reps",
+            "seconds",
+            "restSeconds",
+            "order",
+            "notes"
+          ],
+          "properties": {
+            "exerciseId": {
+              "bsonType": "objectId"
+            },
+            "sets": {
+              "bsonType": [
+                "number",
+                "null"
+              ]
+            },
+            "reps": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "seconds": {
+              "bsonType": [
+                "number",
+                "null"
+              ]
+            },
+            "restSeconds": {
+              "bsonType": [
+                "number",
+                "null"
+              ]
+            },
+            "order": {
+              "bsonType": "number"
+            },
+            "notes": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "coverImage": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "createdBy": {
+        "bsonType": "objectId"
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

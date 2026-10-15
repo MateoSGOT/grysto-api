@@ -1,0 +1,79 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "userId",
+      "routineId",
+      "routineTitle",
+      "userPlanId",
+      "dayNumber",
+      "completedAt",
+      "realDuration_min",
+      "exercisesCompleted",
+      "totalExercises",
+      "completed",
+      "notes",
+      "_id",
+      "createdAt"
+    ],
+    "properties": {
+      "userId": {
+        "bsonType": "objectId"
+      },
+      "routineId": {
+        "bsonType": "objectId"
+      },
+      "routineTitle": {
+        "bsonType": "string"
+      },
+      "userPlanId": {
+        "bsonType": [
+          "objectId",
+          "null"
+        ]
+      },
+      "dayNumber": {
+        "bsonType": [
+          "number",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 7
+      },
+      "completedAt": {
+        "bsonType": "date"
+      },
+      "realDuration_min": {
+        "bsonType": [
+          "number",
+          "null"
+        ]
+      },
+      "exercisesCompleted": {
+        "bsonType": "number",
+        "minimum": 0
+      },
+      "totalExercises": {
+        "bsonType": "number",
+        "minimum": 0
+      },
+      "completed": {
+        "bsonType": "bool"
+      },
+      "notes": {
+        "bsonType": [
+          "string",
+          "null"
+        ],
+        "maxLength": 500
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

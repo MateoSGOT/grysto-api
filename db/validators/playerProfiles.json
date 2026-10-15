@@ -1,0 +1,116 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "userId",
+      "position",
+      "level",
+      "goals",
+      "trainingDaysPerWeek",
+      "sessionDuration",
+      "height",
+      "weight",
+      "age",
+      "weaknesses",
+      "gymAccess",
+      "_id",
+      "createdAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "userId": {
+        "bsonType": "objectId"
+      },
+      "position": {
+        "bsonType": "string",
+        "enum": [
+          "base",
+          "escolta",
+          "alero",
+          "ala-pivot",
+          "pivot"
+        ]
+      },
+      "level": {
+        "bsonType": "string",
+        "enum": [
+          "principiante",
+          "intermedio",
+          "avanzado",
+          "competitivo"
+        ]
+      },
+      "goals": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string",
+          "enum": [
+            "velocidad_agilidad",
+            "salto_vertical",
+            "habilidades_tecnicas",
+            "fuerza_masa",
+            "resistencia"
+          ]
+        }
+      },
+      "trainingDaysPerWeek": {
+        "bsonType": "string",
+        "enum": [
+          "1-2",
+          "3-4",
+          "5-6",
+          "todos"
+        ]
+      },
+      "sessionDuration": {
+        "bsonType": "string",
+        "enum": [
+          "30min",
+          "45-60min",
+          "90-120min",
+          "2h+"
+        ]
+      },
+      "height": {
+        "bsonType": "number",
+        "minimum": 140,
+        "maximum": 230
+      },
+      "weight": {
+        "bsonType": "number",
+        "minimum": 40,
+        "maximum": 180
+      },
+      "age": {
+        "bsonType": "number",
+        "minimum": 12,
+        "maximum": 60
+      },
+      "weaknesses": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "gymAccess": {
+        "bsonType": "string",
+        "enum": [
+          "gym_completo",
+          "casa_mancuernas",
+          "solo_cancha",
+          "grysto_gym"
+        ]
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

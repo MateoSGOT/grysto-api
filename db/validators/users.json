@@ -1,0 +1,75 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "nombre",
+      "email",
+      "password",
+      "role",
+      "plan",
+      "planExpiresAt",
+      "isEmailVerified",
+      "isActive",
+      "lastLoginAt",
+      "_id",
+      "createdAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "nombre": {
+        "bsonType": "string",
+        "minLength": 2,
+        "maxLength": 50
+      },
+      "email": {
+        "bsonType": "string"
+      },
+      "password": {
+        "bsonType": "string",
+        "minLength": 60
+      },
+      "role": {
+        "bsonType": "string",
+        "enum": [
+          "user",
+          "admin"
+        ]
+      },
+      "plan": {
+        "bsonType": "string",
+        "enum": [
+          "free",
+          "premium"
+        ]
+      },
+      "planExpiresAt": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "isEmailVerified": {
+        "bsonType": "bool"
+      },
+      "isActive": {
+        "bsonType": "bool"
+      },
+      "lastLoginAt": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

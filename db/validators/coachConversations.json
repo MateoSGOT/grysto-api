@@ -1,0 +1,129 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "userId",
+      "title",
+      "messages",
+      "totalTokensUsed",
+      "totalCostUSD",
+      "contextSnapshot",
+      "isArchived",
+      "lastMessageAt",
+      "_id",
+      "createdAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "userId": {
+        "bsonType": "objectId"
+      },
+      "title": {
+        "bsonType": [
+          "string",
+          "null"
+        ],
+        "maxLength": 80
+      },
+      "messages": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "object",
+          "required": [
+            "role",
+            "content",
+            "timestamp",
+            "provider",
+            "model",
+            "tokensInput",
+            "tokensOutput",
+            "responseTimeMs",
+            "estimatedCostUSD",
+            "metadata",
+            "_id"
+          ],
+          "properties": {
+            "role": {
+              "bsonType": "string",
+              "enum": [
+                "user",
+                "assistant",
+                "system"
+              ]
+            },
+            "content": {
+              "bsonType": "string",
+              "maxLength": 10000
+            },
+            "timestamp": {
+              "bsonType": "date"
+            },
+            "provider": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "anthropic",
+                "openai",
+                "gemini",
+                "local",
+                "other",
+                null
+              ]
+            },
+            "model": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "tokensInput": {
+              "bsonType": "number"
+            },
+            "tokensOutput": {
+              "bsonType": "number"
+            },
+            "responseTimeMs": {
+              "bsonType": [
+                "number",
+                "null"
+              ]
+            },
+            "estimatedCostUSD": {
+              "bsonType": "number"
+            },
+            "metadata": {},
+            "_id": {
+              "bsonType": "objectId"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "totalTokensUsed": {
+        "bsonType": "number"
+      },
+      "totalCostUSD": {
+        "bsonType": "number"
+      },
+      "contextSnapshot": {},
+      "isArchived": {
+        "bsonType": "bool"
+      },
+      "lastMessageAt": {
+        "bsonType": "date"
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

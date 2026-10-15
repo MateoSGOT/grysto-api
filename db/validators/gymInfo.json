@@ -1,0 +1,99 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "name",
+      "description",
+      "address",
+      "city",
+      "country",
+      "openingDate",
+      "features",
+      "isComingSoon",
+      "updatedAt",
+      "_id",
+      "socialLinks"
+    ],
+    "properties": {
+      "name": {
+        "bsonType": "string"
+      },
+      "description": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "address": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "city": {
+        "bsonType": "string"
+      },
+      "country": {
+        "bsonType": "string"
+      },
+      "openingDate": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "features": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "isComingSoon": {
+        "bsonType": "bool"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "socialLinks": {
+        "bsonType": "object",
+        "required": [
+          "instagram",
+          "tiktok",
+          "youtube",
+          "whatsapp"
+        ],
+        "properties": {
+          "instagram": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "tiktok": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "youtube": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "whatsapp": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}

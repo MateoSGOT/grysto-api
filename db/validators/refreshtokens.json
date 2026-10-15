@@ -1,0 +1,55 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "userId",
+      "token",
+      "expiresAt",
+      "isRevoked",
+      "replacedByToken",
+      "createdByIp",
+      "revokedAt",
+      "_id",
+      "createdAt"
+    ],
+    "properties": {
+      "userId": {
+        "bsonType": "objectId"
+      },
+      "token": {
+        "bsonType": "string"
+      },
+      "expiresAt": {
+        "bsonType": "date"
+      },
+      "isRevoked": {
+        "bsonType": "bool"
+      },
+      "replacedByToken": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "createdByIp": {
+        "bsonType": [
+          "string",
+          "null"
+        ]
+      },
+      "revokedAt": {
+        "bsonType": [
+          "date",
+          "null"
+        ]
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      }
+    },
+    "additionalProperties": false
+  }
+}

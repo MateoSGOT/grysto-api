@@ -1,0 +1,111 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "name",
+      "description",
+      "category",
+      "targetMuscles",
+      "difficulty",
+      "equipment",
+      "tags",
+      "_id",
+      "createdAt",
+      "updatedAt",
+      "demoVideo"
+    ],
+    "properties": {
+      "name": {
+        "bsonType": "string",
+        "minLength": 3,
+        "maxLength": 100
+      },
+      "description": {
+        "bsonType": "string",
+        "minLength": 10,
+        "maxLength": 500
+      },
+      "category": {
+        "bsonType": "string",
+        "enum": [
+          "salto",
+          "dribbling",
+          "tiro",
+          "defensa",
+          "fuerza",
+          "agilidad",
+          "resistencia",
+          "tecnica",
+          "calentamiento",
+          "estiramiento"
+        ]
+      },
+      "targetMuscles": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "difficulty": {
+        "bsonType": "string",
+        "enum": [
+          "principiante",
+          "intermedio",
+          "avanzado"
+        ]
+      },
+      "equipment": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "tags": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "string"
+        }
+      },
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "createdAt": {
+        "bsonType": "date"
+      },
+      "updatedAt": {
+        "bsonType": "date"
+      },
+      "demoVideo": {
+        "bsonType": "object",
+        "required": [
+          "type",
+          "cloudinaryUrl",
+          "youtubeUrl"
+        ],
+        "properties": {
+          "type": {
+            "bsonType": "string",
+            "enum": [
+              "cloudinary",
+              "youtube"
+            ]
+          },
+          "cloudinaryUrl": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "youtubeUrl": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}
