@@ -62,11 +62,26 @@ const registerLimiter = createRateLimiter({
   skip: skipInTest,
 });
 
-/** 3 solicitudes de recuperación de contraseña por IP cada hora. */
-const forgotPasswordLimiter = createRateLimiter({
+/**
+ * 10 envíos de código (reenviar verificación / olvidé mi contraseña) por IP
+ * cada hora. Segunda capa: el cooldown y el límite por usuario viven en
+ * authCode.service.
+ */
+const codeSendLimiter = createRateLimiter({
   windowMs: HOUR,
-  limit: 3,
-  message: 'Demasiadas solicitudes. Intenta de nuevo en una hora.',
+  limit: 10,
+  message: 'Demasiadas solicitudes de código. Intenta de nuevo en una hora.',
+  skip: skipInTest,
+});
+
+/**
+ * 20 intentos de canje de código (verificar email / restablecer contraseña)
+ * por IP cada 15 minutos. Segunda capa sobre el máximo de intentos por código.
+ */
+const codeVerifyLimiter = createRateLimiter({
+  windowMs: 15 * MINUTE,
+  limit: 20,
+  message: 'Demasiados intentos. Intenta de nuevo en unos minutos.',
   skip: skipInTest,
 });
 
@@ -89,6 +104,7 @@ module.exports = {
   createRateLimiter,
   loginLimiter,
   registerLimiter,
-  forgotPasswordLimiter,
+  codeSendLimiter,
+  codeVerifyLimiter,
   coachLimiter,
 };

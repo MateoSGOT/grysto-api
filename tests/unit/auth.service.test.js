@@ -8,27 +8,38 @@ const authService = require('../../src/services/auth.service');
 const {
   User,
   PlayerProfile,
-  EmailVerificationToken,
-  PasswordResetToken,
+  AuthCode,
   RefreshToken,
 } = require('../../src/models');
-const { validRegisterPayload } = require('../fixtures');
+const { validRegisterPayload, captureEmailCodes } = require('../fixtures');
+
+let mail;
+beforeEach(() => {
+  mail = captureEmailCodes();
+});
+afterEach(() => jest.restoreAllMocks());
 
 /**
- * Registra un usuario y devuelve su token de verificación en plano.
+ * Registra un usuario y devuelve su código de verificación en claro.
  *
  * @param {Object} [overrides={}] - Overrides del payload.
- * @returns {Promise<{ payload: Object, verifyToken: string }>}
+ * @returns {Promise<{ payload: Object, verifyCode: string }>}
  */
 async function registerUser(overrides = {}) {
   const payload = validRegisterPayload(overrides);
   await authService.register(payload, '127.0.0.1');
-  const record = await EmailVerificationToken.findOne({}).sort({ createdAt: -1 });
-  return { payload, verifyToken: record.token };
+  return { payload, verifyCode: mail.last(payload.email, 'verify') };
+}
+
+/** Registra y verifica (el verify ya inicia sesión). */
+async function registerAndVerify(overrides = {}) {
+  const { payload, verifyCode } = await registerUser(overrides);
+  await authService.verifyEmail(payload.email, verifyCode, '127.0.0.1');
+  return { payload };
 }
 
 describe('authService.register', () => {
-  it('registra usuario, perfil y token de verificación (sin emitir tokens)', async () => {
+  it('registra usuario, perfil y código de verificación (sin emitir tokens)', async () => {
     const payload = validRegisterPayload();
     const result = await authService.register(payload, '127.0.0.1');
 
@@ -38,7 +49,8 @@ describe('authService.register', () => {
 
     expect(await User.countDocuments()).toBe(1);
     expect(await PlayerProfile.countDocuments()).toBe(1);
-    expect(await EmailVerificationToken.countDocuments()).toBe(1);
+    expect(await AuthCode.countDocuments()).toBe(1);
+    expect(mail.last(payload.email, 'verify')).toMatch(/^\d{6}$/);
   });
 
   it('rechaza email duplicado con 409', async () => {
@@ -51,8 +63,8 @@ describe('authService.register', () => {
 
 describe('authService.login', () => {
   it('inicia sesión y emite access + refresh tras verificar email', async () => {
-    const { payload, verifyToken } = await registerUser();
-    await authService.verifyEmail(verifyToken);
+    const { payload } = await registerAndVerify();
+    await RefreshToken.deleteMany({}); // el verify ya emitió uno
 
     const result = await authService.login(
       payload.email,
@@ -67,8 +79,7 @@ describe('authService.login', () => {
   });
 
   it('rechaza password incorrecto con 401', async () => {
-    const { payload, verifyToken } = await registerUser();
-    await authService.verifyEmail(verifyToken);
+    const { payload } = await registerAndVerify();
 
     await expect(
       authService.login(payload.email, 'WrongPass123', '127.0.0.1')
@@ -79,7 +90,7 @@ describe('authService.login', () => {
     const { payload } = await registerUser();
     await expect(
       authService.login(payload.email, payload.password, '127.0.0.1')
-    ).rejects.toMatchObject({ statusCode: 403 });
+    ).rejects.toMatchObject({ statusCode: 403, code: 'EMAIL_NOT_VERIFIED' });
   });
 });
 
@@ -88,8 +99,7 @@ describe('authService refresh token (rotación y reuso)', () => {
    * @returns {Promise<{ refreshToken: string }>} Refresh token válido inicial.
    */
   async function loggedInUser() {
-    const { payload, verifyToken } = await registerUser();
-    await authService.verifyEmail(verifyToken);
+    const { payload } = await registerAndVerify();
     const { refreshToken } = await authService.login(
       payload.email,
       payload.password,
@@ -132,15 +142,15 @@ describe('authService refresh token (rotación y reuso)', () => {
 });
 
 describe('authService.resetPassword', () => {
-  it('cambia la contraseña, invalida el token y revoca sesiones', async () => {
-    const { payload, verifyToken } = await registerUser();
-    await authService.verifyEmail(verifyToken);
+  it('cambia la contraseña, consume el código y revoca sesiones', async () => {
+    const { payload } = await registerAndVerify();
     await authService.login(payload.email, payload.password, '127.0.0.1');
 
-    const user = await User.findByEmail(payload.email);
-    const resetRecord = await PasswordResetToken.generateToken(user._id);
+    await authService.forgotPassword(payload.email);
+    const resetCode = mail.last(payload.email, 'reset');
 
-    await authService.resetPassword(resetRecord.token, 'NewPassword456');
+    await authService.resetPassword(payload.email, resetCode, 'NewPassword456');
+    expect(await RefreshToken.countDocuments({ isRevoked: false })).toBe(0);
 
     // La nueva contraseña funciona; la vieja no.
     await expect(
@@ -150,8 +160,9 @@ describe('authService.resetPassword', () => {
       authService.login(payload.email, payload.password, '127.0.0.1')
     ).rejects.toMatchObject({ statusCode: 401 });
 
-    // El token de reset quedó usado.
-    const used = await PasswordResetToken.findOne({ token: resetRecord.token });
-    expect(used.used).toBe(true);
+    // El código de reset quedó usado: no sirve una segunda vez.
+    await expect(
+      authService.resetPassword(payload.email, resetCode, 'OtraClave789')
+    ).rejects.toMatchObject({ statusCode: 400, code: 'CODE_EXPIRED' });
   });
 });

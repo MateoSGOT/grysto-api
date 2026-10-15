@@ -121,3 +121,37 @@ describe('WeeklyPlans — soft delete', () => {
     expect(fetched.body.data.weeklyPlan.isActive).toBe(false);
   });
 });
+
+describe('WeeklyPlans — catálogo solo con planes activos', () => {
+  it('un usuario NO ve planes desactivados (aunque pida isActive=false); el admin sí', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const active = await request(app)
+      .post(BASE)
+      .set(authHeader(admin))
+      .send(validWeeklyPlanPayload(routineId, { name: 'Plan vigente' }));
+    const retired = await request(app)
+      .post(BASE)
+      .set(authHeader(admin))
+      .send(validWeeklyPlanPayload(routineId, { name: 'Plan retirado' }));
+    await request(app)
+      .delete(`${BASE}/${retired.body.data.weeklyPlan._id}`)
+      .set(authHeader(admin));
+
+    const user = await createFreeUser();
+    const forUser = await request(app).get(BASE).set(authHeader(user));
+    expect(forUser.status).toBe(200);
+    const userIds = forUser.body.data.weeklyPlans.map((p) => p._id);
+    expect(userIds).toEqual([active.body.data.weeklyPlan._id]);
+    expect(forUser.body.data.total).toBe(1);
+
+    const sneaky = await request(app).get(`${BASE}?isActive=false`).set(authHeader(user));
+    // El filtro se ignora para no-admin: sigue viendo solo los activos.
+    expect(sneaky.body.data.weeklyPlans.map((p) => p._id)).toEqual(userIds);
+
+    const forAdmin = await request(app).get(`${BASE}?isActive=false`).set(authHeader(admin));
+    expect(forAdmin.body.data.weeklyPlans.map((p) => p._id)).toEqual([
+      retired.body.data.weeklyPlan._id,
+    ]);
+  });
+});

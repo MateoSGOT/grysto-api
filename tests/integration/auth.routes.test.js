@@ -7,24 +7,19 @@
 const request = require('supertest');
 const express = require('express');
 const app = require('../../src/app');
-const { EmailVerificationToken } = require('../../src/models');
 const { createRateLimiter } = require('../../src/middlewares/rateLimit.middleware');
-const { validRegisterPayload } = require('../fixtures');
+const { validRegisterPayload, captureEmailCodes } = require('../fixtures');
 
 const BASE = '/api/v1/auth';
 
-/**
- * Obtiene el último token de verificación emitido (modo desarrollo/tests).
- *
- * @returns {Promise<string>} Token de verificación en plano.
- */
-async function lastVerifyToken() {
-  const record = await EmailVerificationToken.findOne({}).sort({ createdAt: -1 });
-  return record.token;
-}
+let mail;
+beforeEach(() => {
+  mail = captureEmailCodes();
+});
+afterEach(() => jest.restoreAllMocks());
 
 describe('Flujo completo de autenticación', () => {
-  it('register → verify → login → me → refresh → reuso(401) → logout', async () => {
+  it('register → verify(código) → login → me → refresh → reuso(401) → logout', async () => {
     const payload = validRegisterPayload();
 
     // 1. Register → 201, sin tokens.
@@ -40,13 +35,14 @@ describe('Flujo completo de autenticación', () => {
       .send({ email: payload.email, password: payload.password });
     expect(earlyLogin.status).toBe(403);
 
-    // 3. Verify email → 200.
-    const token = await lastVerifyToken();
+    // 3. Verify email con el código → 200 (y ya inicia sesión).
+    const code = mail.last(payload.email, 'verify');
     const verifyRes = await request(app)
       .post(`${BASE}/verify-email`)
-      .send({ token });
+      .send({ email: payload.email, code });
     expect(verifyRes.status).toBe(200);
     expect(verifyRes.body.data.user.isEmailVerified).toBe(true);
+    expect(verifyRes.body.data.accessToken).toEqual(expect.any(String));
 
     // 4. Login → 200 con tokens + cookie.
     const loginRes = await request(app)
@@ -103,8 +99,10 @@ describe('Casos de error', () => {
   it('401 con credenciales inválidas', async () => {
     const payload = validRegisterPayload();
     await request(app).post(`${BASE}/register`).send(payload);
-    const token = await lastVerifyToken();
-    await request(app).post(`${BASE}/verify-email`).send({ token });
+    const code = mail.last(payload.email, 'verify');
+    await request(app)
+      .post(`${BASE}/verify-email`)
+      .send({ email: payload.email, code });
 
     const res = await request(app)
       .post(`${BASE}/login`)

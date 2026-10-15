@@ -82,28 +82,86 @@ async function buildInitialLoads(weeklyPlan) {
  * @param {mongoose.Types.ObjectId|string} params.userId - Usuario.
  * @param {import('mongoose').Document} params.weeklyPlan - Plan semanal.
  * @param {string} params.source - Origen (enum PLAN_SOURCE).
+ * @param {import('mongoose').ClientSession} [params.session] - Sesión de una
+ *   transacción en curso (opcional).
  * @returns {Promise<import('mongoose').Document>} UserPlan creado.
+ * @throws {ApiError} 409 si el usuario ya tiene un plan activo (índice único).
  */
-async function createUserPlanForUser({ userId, weeklyPlan, source }) {
+async function createUserPlanForUser({ userId, weeklyPlan, source, session }) {
   const loads = await buildInitialLoads(weeklyPlan);
   const now = new Date();
-  return UserPlan.create({
-    userId,
-    weeklyPlanId: weeklyPlan._id,
-    source,
-    status: PLAN_STATUS.ACTIVE,
-    startedAt: now,
-    currentCycle: 1,
-    cycles: [
-      {
-        cycleNumber: 1,
-        startedAt: now,
-        completedAt: null,
-        loads,
-        daysProgress: freshDaysProgress(),
-      },
-    ],
-  });
+  try {
+    const [doc] = await UserPlan.create(
+      [
+        {
+          userId,
+          weeklyPlanId: weeklyPlan._id,
+          source,
+          status: PLAN_STATUS.ACTIVE,
+          startedAt: now,
+          currentCycle: 1,
+          cycles: [
+            {
+              cycleNumber: 1,
+              startedAt: now,
+              completedAt: null,
+              loads,
+              daysProgress: freshDaysProgress(),
+            },
+          ],
+        },
+      ],
+      session ? { session } : {}
+    );
+    return doc;
+  } catch (err) {
+    // Índice único parcial { userId } con status 'active': una activación
+    // concurrente (doble tap) ya creó el plan activo.
+    if (err && err.code === 11000) {
+      throw ApiError.conflict('Ya tienes un plan activo');
+    }
+    throw err;
+  }
+}
+
+/**
+ * Cierra el plan activo actual como `abandoned` y crea uno nuevo `active`,
+ * en UNA transacción: nunca deja al usuario sin plan ni con dos activos.
+ *
+ * @param {import('mongoose').Document} active - UserPlan activo a cerrar.
+ * @param {import('mongoose').Document} weeklyPlan - Plan semanal a activar.
+ * @returns {Promise<import('mongoose').Document>} Nuevo UserPlan activo.
+ */
+async function replaceActivePlan(active, weeklyPlan) {
+  const session = await mongoose.startSession();
+  let created;
+  try {
+    await session.withTransaction(async () => {
+      active.status = PLAN_STATUS.ABANDONED;
+      await active.save({ session });
+      created = await createUserPlanForUser({
+        userId: active.userId,
+        weeklyPlan,
+        source: PLAN_SOURCE.SELECTED,
+        session,
+      });
+    });
+  } finally {
+    await session.endSession();
+  }
+  return created;
+}
+
+/**
+ * Indica si el plan activo apunta a un plan semanal que ya no existe
+ * (referencia colgante → `planUnavailable` en GET /my-plan).
+ *
+ * @param {import('mongoose').Document} active - UserPlan activo.
+ * @returns {Promise<boolean>} `true` si el plan semanal no existe.
+ */
+async function isDangling(active) {
+  if (active.weeklyPlanId == null) return true;
+  return !(await WeeklyPlan.exists({ _id: active.weeklyPlanId }));
 }
 
 /**
@@ -144,13 +202,20 @@ async function activatePlan(userId, weeklyPlanId) {
 
   const active = await findActivePlan(userId);
 
-  // Sin plan activo → alta normal.
+  // Sin plan activo (free o premium) → alta normal.
   if (!active) {
     return createUserPlanForUser({
       userId,
       weeklyPlan,
       source: PLAN_SOURCE.SELECTED,
     });
+  }
+
+  // Plan activo con plan semanal inexistente (planUnavailable): no hay plan
+  // utilizable ni cargas que cruzar → free y premium pueden elegir otro. Se
+  // cierra el colgante y se activa el nuevo en una transacción.
+  if (await isDangling(active)) {
+    return replaceActivePlan(active, weeklyPlan);
   }
 
   // Premium con plan activo → hoy el cambio de plan pasa por el flujo dedicado
@@ -163,14 +228,9 @@ async function activatePlan(userId, weeklyPlanId) {
   }
 
   // Free con plan activo: solo puede cambiar si el actual fue recomendado.
+  // Transacción: si la creación falla, el recomendado NO queda abandonado.
   if (active.source === PLAN_SOURCE.RECOMMENDED) {
-    active.status = PLAN_STATUS.ABANDONED;
-    await active.save();
-    return createUserPlanForUser({
-      userId,
-      weeklyPlan,
-      source: PLAN_SOURCE.SELECTED,
-    });
+    return replaceActivePlan(active, weeklyPlan);
   }
 
   throw ApiError.forbidden(

@@ -187,7 +187,65 @@ function validWeeklyPlanPayload(routineId, overrides = {}) {
   };
 }
 
+/**
+ * Intercepta los envíos de email y guarda los códigos en claro (en la base
+ * solo está el HMAC). Llamar en `beforeEach`; `jest.restoreAllMocks()` en
+ * `afterEach` deshace los spies.
+ *
+ * @returns {{ sent: Array<{ kind: 'verify'|'reset', to: string, code: string }>,
+ *   last: (to: string, kind: 'verify'|'reset') => string|undefined,
+ *   count: (to: string, kind: 'verify'|'reset') => number }}
+ */
+function captureEmailCodes() {
+  // Require diferido: fixtures no debe cargar services salvo que se use.
+  // eslint-disable-next-line global-require
+  const emailService = require('../src/services/email.service');
+  const sent = [];
+  jest
+    .spyOn(emailService, 'sendVerificationCode')
+    .mockImplementation(async (to, _nombre, code) => {
+      sent.push({ kind: 'verify', to, code });
+      return { sent: true };
+    });
+  jest
+    .spyOn(emailService, 'sendPasswordResetCode')
+    .mockImplementation(async (to, _nombre, code) => {
+      sent.push({ kind: 'reset', to, code });
+      return { sent: true };
+    });
+  const matching = (to, kind) => sent.filter((m) => m.to === to && m.kind === kind);
+  return {
+    sent,
+    last: (to, kind) => matching(to, kind).at(-1)?.code,
+    count: (to, kind) => matching(to, kind).length,
+  };
+}
+
+/**
+ * Corre el reloj de los códigos emitidos hacia atrás (createdAt), para salir
+ * del cooldown de reenvío sin esperar. Usa el driver nativo: Mongoose trata
+ * `createdAt` como inmutable.
+ *
+ * @param {number} ms - Milisegundos a retroceder.
+ * @returns {Promise<void>}
+ */
+async function ageAuthCodes(ms) {
+  // eslint-disable-next-line global-require
+  const { AuthCode } = require('../src/models');
+  const docs = await AuthCode.find({}).select('createdAt').lean();
+  await Promise.all(
+    docs.map((d) =>
+      AuthCode.collection.updateOne(
+        { _id: d._id },
+        { $set: { createdAt: new Date(d.createdAt.getTime() - ms) } }
+      )
+    )
+  );
+}
+
 module.exports = {
+  captureEmailCodes,
+  ageAuthCodes,
   uniqueEmail,
   validRegisterPayload,
   createUser,

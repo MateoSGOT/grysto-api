@@ -24,5 +24,3 @@ process.env.AI_DEFAULT_PROVIDER = 'gemini';
 process.env.GEMINI_API_KEY = 'test-gemini-key'; // fetch se mockea en los tests
 process.env.GEMINI_MODEL = 'gemini-2.5-flash';
 process.env.FRONTEND_URL = 'http://localhost:5173';
-process.env.CLIENT_VERIFY_URL = 'http://localhost:5173/verify-email';
-process.env.CLIENT_RESET_URL = 'http://localhost:5173/reset-password';

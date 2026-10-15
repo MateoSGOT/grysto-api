@@ -14,20 +14,27 @@ const {
   Subscription,
   GymInfo,
   WorkoutHistory,
-  EmailVerificationToken,
-  PasswordResetToken,
+  AuthCode,
   RefreshToken,
 } = require('../models');
+const crypto = require('crypto');
 const { signAccessToken } = require('../utils/jwt.util');
 const ApiError = require('../utils/ApiError');
-const { PLAN_SOURCE } = require('../constants/enums');
+const { PLAN_SOURCE, AUTH_CODE_PURPOSES } = require('../constants/enums');
+const { AUTH_CODE_POLICY } = require('../constants/authCodes');
 const emailService = require('./email.service');
+const authCodeService = require('./authCode.service');
 const weeklyPlanService = require('./weeklyPlan.service');
 const userPlanService = require('./userPlan.service');
 
-const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 h
+/** Códigos de negocio propios de auth (campo `code` top-level). */
+const AUTH_ERRORS = Object.freeze({
+  EMAIL_NOT_VERIFIED: 'EMAIL_NOT_VERIFIED',
+  ALREADY_VERIFIED: 'ALREADY_VERIFIED',
+});
 
-const crypto = require('crypto');
+/** Segundos de cooldown que se informan tras un envío exitoso. */
+const RESEND_COOLDOWN_SECONDS = Math.ceil(AUTH_CODE_POLICY.resendCooldownMs / 1000);
 
 /**
  * Firma un access token a partir de un usuario.
@@ -44,9 +51,43 @@ function issueAccessToken(user) {
 }
 
 /**
- * Registra un usuario nuevo junto a su perfil y token de verificación,
- * de forma atómica (transacción). NO emite tokens: primero debe verificar
- * el email.
+ * Emite el par access + refresh para un usuario y registra el login.
+ *
+ * @param {mongoose.Document} user - Usuario (verificado y activo).
+ * @param {string|null} ip - IP de origen.
+ * @returns {Promise<{ accessToken: string, refreshToken: string }>}
+ */
+async function issueSession(user, ip) {
+  user.lastLoginAt = new Date();
+  await user.save();
+  const accessToken = issueAccessToken(user);
+  const { plainToken: refreshToken } = await RefreshToken.generateToken(
+    user._id,
+    ip
+  );
+  return { accessToken, refreshToken };
+}
+
+/**
+ * Emite y envía un código de verificación de cuenta.
+ *
+ * @param {mongoose.Document} user - Usuario.
+ * @returns {Promise<number>} Segundos hasta poder reenviar.
+ * @throws {ApiError} 429 RESEND_COOLDOWN / RESEND_LIMIT.
+ */
+async function sendVerificationCode(user) {
+  const { code, resendAvailableInSeconds } = await authCodeService.issueCode(
+    user._id,
+    AUTH_CODE_PURPOSES.EMAIL_VERIFICATION
+  );
+  await emailService.sendVerificationCode(user.email, user.nombre, code);
+  return resendAvailableInSeconds;
+}
+
+/**
+ * Registra un usuario nuevo junto a su perfil, de forma atómica
+ * (transacción), y le envía el código de verificación. NO emite tokens:
+ * primero debe verificar el email.
  *
  * @param {Object} data - Datos validados (credenciales + cuestionario).
  * @param {string|null} [ip=null] - IP de origen.
@@ -61,7 +102,6 @@ async function register(data, ip = null) {
 
   const session = await mongoose.startSession();
   let createdUser;
-  let verifyTokenPlain;
 
   try {
     await session.withTransaction(async () => {
@@ -96,30 +136,20 @@ async function register(data, ip = null) {
         { session }
       );
 
-      verifyTokenPlain = crypto.randomBytes(32).toString('hex');
-      await EmailVerificationToken.create(
-        [
-          {
-            userId: user._id,
-            token: verifyTokenPlain,
-            expiresAt: new Date(Date.now() + EMAIL_VERIFY_TTL_MS),
-          },
-        ],
-        { session }
-      );
-
       createdUser = user;
     });
   } finally {
     await session.endSession();
   }
 
-  // Fuera de la transacción: el envío de email no debe romper el registro.
-  await emailService.sendVerificationEmail(
-    createdUser.email,
-    createdUser.nombre,
-    verifyTokenPlain
-  );
+  // Fuera de la transacción: el código y su envío no deben romper el registro
+  // (si fallan, el usuario puede pedir otro con resend-verification).
+  try {
+    await sendVerificationCode(createdUser);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`✗ [auth] No se pudo emitir el código de verificación: ${err.message}`);
+  }
 
   return createdUser.getPublicProfile();
 }
@@ -131,7 +161,8 @@ async function register(data, ip = null) {
  * @param {string} password - Contraseña en claro.
  * @param {string|null} [ip=null] - IP de origen.
  * @returns {Promise<{ user: Object, accessToken: string, refreshToken: string }>}
- * @throws {ApiError} 401 credenciales inválidas; 403 email no verificado o cuenta inactiva.
+ * @throws {ApiError} 401 credenciales inválidas; 403 EMAIL_NOT_VERIFIED (con
+ *   `details.resendAvailableInSeconds`) o cuenta inactiva.
  */
 async function login(email, password, ip = null) {
   const user = await User.findByEmail(email);
@@ -140,23 +171,27 @@ async function login(email, password, ip = null) {
   if (!user || !(await user.comparePassword(password))) {
     throw ApiError.unauthorized('Credenciales inválidas');
   }
-  if (!user.isEmailVerified) {
-    throw ApiError.forbidden('Verifica tu email primero');
-  }
   if (!user.isActive) {
     throw ApiError.forbidden('Cuenta desactivada');
   }
+  if (!user.isEmailVerified) {
+    // Contraseña correcta pero sin verificar: se envía un código (si el
+    // cooldown lo permite) y el código de error lleva a la pantalla de código.
+    let resendAvailableInSeconds;
+    try {
+      await sendVerificationCode(user);
+      resendAvailableInSeconds = RESEND_COOLDOWN_SECONDS;
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.statusCode !== 429) throw err;
+      resendAvailableInSeconds = err.details?.retryAfterSeconds ?? RESEND_COOLDOWN_SECONDS;
+    }
+    throw ApiError.forbidden('Verifica tu email: te enviamos un código.', {
+      resendAvailableInSeconds,
+    }).withCode(AUTH_ERRORS.EMAIL_NOT_VERIFIED);
+  }
 
-  user.lastLoginAt = new Date();
-  await user.save();
-
-  const accessToken = issueAccessToken(user);
-  const { plainToken: refreshToken } = await RefreshToken.generateToken(
-    user._id,
-    ip
-  );
-
-  return { user: user.getPublicProfile(), accessToken, refreshToken };
+  const tokens = await issueSession(user, ip);
+  return { user: user.getPublicProfile(), ...tokens };
 }
 
 /**
@@ -182,37 +217,73 @@ async function recommendPlan(userId) {
 }
 
 /**
- * Verifica el email mediante token y dispara la recomendación de plan.
+ * Verifica el email con el código de 6 dígitos, recomienda un plan e INICIA
+ * SESIÓN (registro → código → Home).
  *
- * @param {string} token - Token de verificación.
- * @returns {Promise<{ user: Object, recommendedPlan: Object|null }>}
- * @throws {ApiError} 400 si el token es inválido, usado o expirado.
+ * La recomendación es best-effort: si falla, la verificación NO se rompe
+ * (`recommendedPlan: null`) y el usuario elige un plan desde el catálogo.
+ *
+ * @param {string} email - Email de la cuenta.
+ * @param {string} code - Código de 6 dígitos.
+ * @param {string|null} [ip=null] - IP de origen.
+ * @returns {Promise<{ user: Object, accessToken: string, refreshToken: string, recommendedPlan: Object|null }>}
+ * @throws {ApiError} 400 CODE_*; 409 ALREADY_VERIFIED; 403 cuenta desactivada.
  */
-async function verifyEmail(token) {
-  const record = await EmailVerificationToken.findOne({ token });
-  if (
-    !record ||
-    record.verified ||
-    record.expiresAt.getTime() < Date.now()
-  ) {
-    throw ApiError.badRequest('Token de verificación inválido o expirado');
-  }
+async function verifyEmail(email, code, ip = null) {
+  const user = await User.findOne({ email });
+  if (!user) throw authCodeService.unknownUserError();
+  if (user.isEmailVerified) throw alreadyVerified();
 
-  const user = await User.findById(record.userId);
-  if (!user) {
-    throw ApiError.badRequest('Token de verificación inválido o expirado');
-  }
+  await authCodeService.consumeCode(
+    user._id,
+    AUTH_CODE_PURPOSES.EMAIL_VERIFICATION,
+    code
+  );
 
+  // Update condicional: si dos requests llegan a la vez, solo una verifica
+  // (y solo una dispara la recomendación de plan).
+  const { modifiedCount } = await User.updateOne(
+    { _id: user._id, isEmailVerified: false },
+    { $set: { isEmailVerified: true } }
+  );
+  if (modifiedCount === 0) throw alreadyVerified();
   user.isEmailVerified = true;
-  await user.save();
 
-  record.verified = true;
-  record.verifiedAt = new Date();
-  await record.save();
+  let recommendedPlan = null;
+  try {
+    recommendedPlan = await recommendPlan(user._id);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`✗ [auth] recommendPlan falló para ${user._id}: ${err.message}`);
+  }
 
-  const recommendedPlan = await recommendPlan(user._id);
+  if (!user.isActive) throw ApiError.forbidden('Cuenta desactivada');
 
-  return { user: user.getPublicProfile(), recommendedPlan };
+  const tokens = await issueSession(user, ip);
+  return { user: user.getPublicProfile(), ...tokens, recommendedPlan };
+}
+
+/** @returns {ApiError} 409 ALREADY_VERIFIED. */
+function alreadyVerified() {
+  return ApiError.conflict('Tu email ya está verificado. Inicia sesión.').withCode(
+    AUTH_ERRORS.ALREADY_VERIFIED
+  );
+}
+
+/**
+ * Reenvía el código de verificación. Si el email no existe responde igual
+ * que un envío exitoso, sin enviar nada.
+ *
+ * @param {string} email - Email de la cuenta.
+ * @returns {Promise<{ resendAvailableInSeconds: number }>}
+ * @throws {ApiError} 409 ALREADY_VERIFIED; 429 RESEND_COOLDOWN / RESEND_LIMIT.
+ */
+async function resendVerification(email) {
+  const user = await User.findOne({ email });
+  if (!user) return { resendAvailableInSeconds: RESEND_COOLDOWN_SECONDS };
+  if (user.isEmailVerified) throw alreadyVerified();
+  const resendAvailableInSeconds = await sendVerificationCode(user);
+  return { resendAvailableInSeconds };
 }
 
 /**
@@ -255,54 +326,57 @@ async function logout(token) {
 }
 
 /**
- * Inicia la recuperación de contraseña. Respuesta idéntica exista o no el
- * email (anti-enumeración).
+ * Inicia la recuperación de contraseña enviando un código. Respuesta SIEMPRE
+ * idéntica exista o no el email (anti-enumeración): el cooldown y el límite
+ * por hora se aplican en silencio, sin 429.
  *
  * @param {string} email - Email.
- * @returns {Promise<void>}
+ * @returns {Promise<{ resendAvailableInSeconds: number }>}
  */
 async function forgotPassword(email) {
   const user = await User.findOne({ email });
-  if (user) {
-    const record = await PasswordResetToken.generateToken(user._id);
-    await emailService.sendPasswordResetEmail(
-      user.email,
-      user.nombre,
-      record.token
-    );
+  if (user && user.isActive) {
+    try {
+      const { code } = await authCodeService.issueCode(
+        user._id,
+        AUTH_CODE_PURPOSES.PASSWORD_RESET
+      );
+      await emailService.sendPasswordResetCode(user.email, user.nombre, code);
+    } catch (err) {
+      // 429 (cooldown/límite) se silencia para no revelar que el email existe.
+      if (!(err instanceof ApiError) || err.statusCode !== 429) throw err;
+    }
   }
+  return { resendAvailableInSeconds: RESEND_COOLDOWN_SECONDS };
 }
 
 /**
- * Restablece la contraseña con un token válido y revoca todas las sesiones.
+ * Restablece la contraseña con el código de reset y revoca TODAS las sesiones
+ * (refresh tokens) del usuario. No inicia sesión: el usuario vuelve a login.
  *
- * @param {string} token - Token de reset.
- * @param {string} newPassword - Nueva contraseña (se hashea en pre-save).
+ * @param {string} email - Email de la cuenta.
+ * @param {string} code - Código de 6 dígitos (propósito password_reset).
+ * @param {string} newPassword - Nueva contraseña (se hashea en pre-validate).
  * @returns {Promise<{ message: string }>} Confirmación.
- * @throws {ApiError} 400 si el token es inválido, usado o expirado.
+ * @throws {ApiError} 400 CODE_* (email inexistente → CODE_INVALID, igual que un código incorrecto).
  */
-async function resetPassword(token, newPassword) {
-  const record = await PasswordResetToken.findOne({ token });
-  if (!record || record.used || record.expiresAt.getTime() < Date.now()) {
-    throw ApiError.badRequest('Token de recuperación inválido o expirado');
-  }
+async function resetPassword(email, code, newPassword) {
+  const user = await User.findOne({ email });
+  if (!user) throw authCodeService.unknownUserError();
 
-  const user = await User.findById(record.userId);
-  if (!user) {
-    throw ApiError.badRequest('Token de recuperación inválido o expirado');
-  }
+  await authCodeService.consumeCode(
+    user._id,
+    AUTH_CODE_PURPOSES.PASSWORD_RESET,
+    code
+  );
 
   user.password = newPassword;
   await user.save();
 
-  record.used = true;
-  record.usedAt = new Date();
-  await record.save();
-
   // Cierra sesión en todos los dispositivos.
   await RefreshToken.revokeAllForUser(user._id);
 
-  return { message: 'Contraseña actualizada correctamente' };
+  return { message: 'Contraseña actualizada. Inicia sesión con la nueva.' };
 }
 
 /**
@@ -336,8 +410,7 @@ async function deleteAccount(userId, password) {
       await GymInfo.deleteMany({ userId: uid }, { session });
       await WorkoutHistory.deleteMany({ userId: uid }, { session });
       await RefreshToken.deleteMany({ userId: uid }, { session });
-      await EmailVerificationToken.deleteMany({ userId: uid }, { session });
-      await PasswordResetToken.deleteMany({ userId: uid }, { session });
+      await AuthCode.deleteMany({ userId: uid }, { session });
       await User.deleteOne({ _id: uid }, { session });
     });
   } finally {
@@ -348,9 +421,11 @@ async function deleteAccount(userId, password) {
 }
 
 module.exports = {
+  AUTH_ERRORS,
   register,
   login,
   verifyEmail,
+  resendVerification,
   refreshToken,
   logout,
   forgotPassword,

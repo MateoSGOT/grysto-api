@@ -50,10 +50,10 @@ const passwordField = z
   .regex(/[0-9]/, 'La contraseña debe incluir al menos un número');
 
 /** Token opaco / de verificación (hex no vacío). */
-const tokenField = z
-  .string({ message: 'El token es obligatorio' })
+const codeField = z
+  .string({ message: 'El código es obligatorio' })
   .trim()
-  .min(1, 'El token es obligatorio');
+  .regex(/^\d{6}$/, 'El código debe tener 6 dígitos');
 
 /** Schema de registro: credenciales + cuestionario del jugador. */
 const registerSchema = z.object({
@@ -107,7 +107,12 @@ const loginSchema = z.object({
 
 /** Schema de verificación de email. */
 const verifyEmailSchema = z.object({
-  token: tokenField,
+  email: emailField,
+  code: codeField,
+});
+
+const resendVerificationSchema = z.object({
+  email: emailField,
 });
 
 /** Schema de solicitud de recuperación de contraseña. */
@@ -117,7 +122,8 @@ const forgotPasswordSchema = z.object({
 
 /** Schema de reset de contraseña. */
 const resetPasswordSchema = z.object({
-  token: tokenField,
+  email: emailField,
+  code: codeField,
   newPassword: passwordField,
 });
 
@@ -137,6 +143,7 @@ module.exports = {
   registerSchema,
   loginSchema,
   verifyEmailSchema,
+  resendVerificationSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   refreshTokenSchema,

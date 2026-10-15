@@ -68,15 +68,26 @@ const login = asyncHandler(async (req, res) => {
   );
 });
 
-/** POST /auth/verify-email */
+/** POST /auth/verify-email — verifica con el código e inicia sesión. */
 const verifyEmail = asyncHandler(async (req, res) => {
-  const { user, recommendedPlan } = await authService.verifyEmail(
-    req.body.token
-  );
+  const { user, accessToken, refreshToken, recommendedPlan } =
+    await authService.verifyEmail(req.body.email, req.body.code, req.ip);
+
+  res.cookie(REFRESH_COOKIE, refreshToken, refreshCookieOptions());
   return ApiResponse.success(
     res,
-    { user, recommendedPlan },
+    { user, accessToken, refreshToken, recommendedPlan },
     'Email verificado correctamente'
+  );
+});
+
+/** POST /auth/resend-verification — reenvía el código de verificación. */
+const resendVerification = asyncHandler(async (req, res) => {
+  const result = await authService.resendVerification(req.body.email);
+  return ApiResponse.success(
+    res,
+    result,
+    'Si la cuenta existe y no está verificada, te enviamos un código nuevo.'
   );
 });
 
@@ -111,19 +122,20 @@ const logout = asyncHandler(async (req, res) => {
 
 /** POST /auth/forgot-password */
 const forgotPassword = asyncHandler(async (req, res) => {
-  await authService.forgotPassword(req.body.email);
+  const result = await authService.forgotPassword(req.body.email);
   // Respuesta idéntica exista o no el email (anti-enumeración).
   return ApiResponse.success(
     res,
-    null,
-    'Si el email está registrado, recibirás instrucciones para recuperar tu contraseña.'
+    result,
+    'Si el email está registrado, te enviamos un código para recuperar tu contraseña.'
   );
 });
 
-/** POST /auth/reset-password */
+/** POST /auth/reset-password — código + nueva contraseña; revoca sesiones. */
 const resetPassword = asyncHandler(async (req, res) => {
   const result = await authService.resetPassword(
-    req.body.token,
+    req.body.email,
+    req.body.code,
     req.body.newPassword
   );
   return ApiResponse.success(res, null, result.message);
@@ -145,6 +157,7 @@ module.exports = {
   register,
   login,
   verifyEmail,
+  resendVerification,
   refresh,
   logout,
   forgotPassword,

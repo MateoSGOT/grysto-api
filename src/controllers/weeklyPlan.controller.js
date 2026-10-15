@@ -8,6 +8,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiResponse = require('../utils/ApiResponse');
 const weeklyPlanService = require('../services/weeklyPlan.service');
 const userPlanService = require('../services/userPlan.service');
+const { ROLES } = require('../constants/enums');
 
 /** GET /weekly-plans — lista paginada con filtros + `isCurrentPlan` por item. */
 const list = asyncHandler(async (req, res) => {
@@ -26,7 +27,8 @@ const list = asyncHandler(async (req, res) => {
   const result = await weeklyPlanService.list(
     { targetPosition, targetLevel, targetGoal, position, level, goal, isPremium, isActive },
     { page, limit },
-    req.user.id
+    req.user.id,
+    { isAdmin: req.user.role === ROLES.ADMIN }
   );
   return ApiResponse.success(res, result, 'Planes semanales obtenidos');
 });

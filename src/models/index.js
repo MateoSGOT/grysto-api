@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * @file Punto único de acceso a los 13 models de Mongoose.
+ * @file Punto único de acceso a los 12 models de Mongoose.
  */
 
 const User = require('./User');
@@ -13,8 +13,7 @@ const UserPlan = require('./UserPlan');
 const WorkoutHistory = require('./WorkoutHistory');
 const CoachConversation = require('./CoachConversation');
 const Subscription = require('./Subscription');
-const PasswordResetToken = require('./PasswordResetToken');
-const EmailVerificationToken = require('./EmailVerificationToken');
+const AuthCode = require('./AuthCode');
 const RefreshToken = require('./RefreshToken');
 const GymInfo = require('./GymInfo');
 
@@ -28,8 +27,7 @@ module.exports = {
   WorkoutHistory,
   CoachConversation,
   Subscription,
-  PasswordResetToken,
-  EmailVerificationToken,
+  AuthCode,
   RefreshToken,
   GymInfo,
 };

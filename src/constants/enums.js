@@ -139,6 +139,12 @@ const VIDEO_TYPES = Object.freeze({
   YOUTUBE: 'youtube',
 });
 
+/** Propósito de un código de un solo uso enviado por email (no intercambiables). */
+const AUTH_CODE_PURPOSES = Object.freeze({
+  EMAIL_VERIFICATION: 'email_verification',
+  PASSWORD_RESET: 'password_reset',
+});
+
 /**
  * Devuelve el array de valores de un enum, listo para `enum:` de Mongoose
  * o validaciones de Zod.
@@ -165,5 +171,6 @@ module.exports = Object.freeze({
   AI_PROVIDERS,
   MSG_ROLES,
   VIDEO_TYPES,
+  AUTH_CODE_PURPOSES,
   valuesOf,
 });

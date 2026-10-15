@@ -142,9 +142,56 @@ ciclos pasados y días completados no se tocan.
 
 JWT access (corto) + refresh con **rotación en cada uso y detección de
 reuso** (`RefreshToken` model): un refresh token reutilizado invalida la
-familia completa ("sesión comprometida"). Verificación de email por token;
-rate limits por endpoint en `middlewares/rateLimit.middleware.js` (el del
-coach es por usuario: 20 msg / 15 min).
+familia completa ("sesión comprometida"). Rate limits por endpoint en
+`middlewares/rateLimit.middleware.js` (el del coach es por usuario: 20 msg /
+15 min).
+
+### Verificación y reset por CÓDIGO de 6 dígitos (sin links ni deep links)
+
+`services/authCode.service.js` + model `AuthCode` (colección `authCodes`) +
+política en `constants/authCodes.js` (TTL 10 min, 5 intentos, cooldown 60 s,
+5 envíos/hora por usuario y propósito, purga TTL a las 24 h).
+
+- Código con `crypto.randomInt`; se guarda SOLO `HMAC-SHA256(purpose:userId:code)`.
+  Incluir `purpose` y `userId` impide usar un código de verificación para reset
+  (y viceversa) o para otro usuario. Un solo uso (`usedAt`); emitir uno nuevo
+  invalida el anterior del mismo propósito; consumo e intentos con updates
+  condicionales (atómicos).
+- **Clave HMAC**: `AUTH_CODE_SECRET`. Si falta, se DERIVA de
+  `JWT_REFRESH_SECRET` (fallback de desarrollo). **En producción (Render) va
+  una `AUTH_CODE_SECRET` propia** (larga, aleatoria). Cambiarla invalida los
+  códigos vigentes (vencen en 10 min, sin más impacto).
+- Endpoints (`/auth`): `register` (envía código) · `verify-email {email, code}`
+  → **inicia sesión** (`user, accessToken, refreshToken, recommendedPlan`) ·
+  `resend-verification {email}` · `login` no verificado → **403
+  `EMAIL_NOT_VERIFIED`** con `details.resendAvailableInSeconds` (y reenvía si
+  el cooldown lo permite) · `forgot-password {email}` (SIEMPRE el mismo 200,
+  cooldown silencioso, anti-enumeración) · `reset-password {email, code,
+  newPassword}` → revoca TODOS los refresh tokens, no inicia sesión.
+- Errores con `code` top-level: `CODE_INVALID` (+`details.attemptsRemaining`),
+  `CODE_EXPIRED`, `CODE_TOO_MANY_ATTEMPTS` (400) · `RESEND_COOLDOWN`,
+  `RESEND_LIMIT` (429, +`details.retryAfterSeconds`) · `ALREADY_VERIFIED` (409).
+  Email inexistente en verify/reset → `CODE_INVALID` sin detalle.
+- `recommendPlan` en verify es best-effort: si falla, se loguea y devuelve
+  `recommendedPlan: null` (el usuario activa desde el catálogo).
+- Email (`email.service.js`): remitente = `EMAIL_FROM` (cambiar al dominio
+  verificado NO toca código). Resend v6 **no lanza** ante errores de la API:
+  devuelve `{ error }` y se trata como no enviado. Sin dominio verificado,
+  Resend solo entrega desde `onboarding@resend.dev` al email dueño de la cuenta.
+- Tests: `captureEmailCodes()` / `ageAuthCodes()` en `tests/fixtures.js`
+  (el código en claro solo existe en el email).
+- `FRONTEND_URL` es SOLO el origen de CORS; no hay links en los emails.
+
+### Activación de plan sin plan activo
+
+`activatePlan`: sin plan activo → free y premium activan directo (premium-only
+para planes `isPremium`; plan inactivo → 404). Plan activo **colgante**
+(`planUnavailable`) → se cierra como `abandoned` y se activa el nuevo en UNA
+transacción (free o premium). Free con plan recomendado → mismo reemplazo
+transaccional. `GET /weekly-plans` muestra solo `isActive: true` a no-admins.
+Índice único parcial `{userId}` con `status:'active'` en `userPlans`: se crea
+A MANO en Atlas (no está en el schema para que autoIndex no lo cree solo); el
+service traduce su E11000 a 409 "Ya tienes un plan activo".
 
 ## Coach IA
 

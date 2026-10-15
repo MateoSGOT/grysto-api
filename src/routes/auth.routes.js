@@ -11,12 +11,14 @@ const { authenticate } = require('../middlewares/auth.middleware');
 const {
   loginLimiter,
   registerLimiter,
-  forgotPasswordLimiter,
+  codeSendLimiter,
+  codeVerifyLimiter,
 } = require('../middlewares/rateLimit.middleware');
 const {
   registerSchema,
   loginSchema,
   verifyEmailSchema,
+  resendVerificationSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   refreshTokenSchema,
@@ -36,8 +38,16 @@ router.post('/login', loginLimiter, validate(loginSchema), authController.login)
 
 router.post(
   '/verify-email',
+  codeVerifyLimiter,
   validate(verifyEmailSchema),
   authController.verifyEmail
+);
+
+router.post(
+  '/resend-verification',
+  codeSendLimiter,
+  validate(resendVerificationSchema),
+  authController.resendVerification
 );
 
 router.post(
@@ -50,13 +60,14 @@ router.post('/logout', authenticate, authController.logout);
 
 router.post(
   '/forgot-password',
-  forgotPasswordLimiter,
+  codeSendLimiter,
   validate(forgotPasswordSchema),
   authController.forgotPassword
 );
 
 router.post(
   '/reset-password',
+  codeVerifyLimiter,
   validate(resetPasswordSchema),
   authController.resetPassword
 );

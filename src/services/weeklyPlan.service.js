@@ -60,11 +60,16 @@ async function getById(id) {
 /**
  * Lista planes con filtros opcionales y paginación.
  *
+ * Para usuarios no admin el catálogo muestra SOLO planes activos (ignora el
+ * filtro `isActive`): un plan desactivado no debe ofrecerse para activar.
+ *
  * @param {Object} filters - Filtros.
  * @param {Object} pagination - { page, limit }.
+ * @param {string|null} [userId=null] - Usuario (para `isCurrentPlan`).
+ * @param {{ isAdmin?: boolean }} [opts={}] - El admin puede listar inactivos.
  * @returns {Promise<{ weeklyPlans: object[], total: number, page: number, totalPages: number }>}
  */
-async function list(filters, pagination, userId = null) {
+async function list(filters, pagination, userId = null, { isAdmin = false } = {}) {
   const { page, limit } = pagination;
   const query = {};
   // Filtros por atributo objetivo. `level`/`goal`/`position` son alias amigables
@@ -76,7 +81,8 @@ async function list(filters, pagination, userId = null) {
   if (level) query.targetLevel = { $in: [level] };
   if (goal) query.targetGoal = { $in: [goal] };
   if (typeof filters.isPremium === 'boolean') query.isPremium = filters.isPremium;
-  if (typeof filters.isActive === 'boolean') query.isActive = filters.isActive;
+  if (!isAdmin) query.isActive = true;
+  else if (typeof filters.isActive === 'boolean') query.isActive = filters.isActive;
 
   const [weeklyPlans, total] = await Promise.all([
     WeeklyPlan.find(query)

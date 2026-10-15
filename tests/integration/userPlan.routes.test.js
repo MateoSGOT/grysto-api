@@ -7,7 +7,7 @@
 
 const request = require('supertest');
 const app = require('../../src/app');
-const { WeeklyPlan } = require('../../src/models');
+const { WeeklyPlan, UserPlan } = require('../../src/models');
 const userPlanService = require('../../src/services/userPlan.service');
 const { PLAN_SOURCE } = require('../../src/constants/enums');
 const {
@@ -500,5 +500,122 @@ describe('UserPlans — referencia colgante (weekly plan borrado)', () => {
     expect(mine.status).toBe(200);
     expect(mine.body.data.plan.planUnavailable).toBe(false);
     expect(mine.body.data.plan.weeklyPlanId._id).toBe(planId);
+  });
+});
+
+describe('UserPlans — usuario sin plan activo', () => {
+  it('PREMIUM sin plan activo puede activar uno (201)', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planId = await seedWeeklyPlan(admin, routineId);
+    const premium = await createPremiumUser();
+
+    const res = await request(app)
+      .post(`${BASE}/activate`)
+      .set(authHeader(premium))
+      .send({ weeklyPlanId: planId });
+    expect(res.status).toBe(201);
+    expect(res.body.data.plan.source).toBe(PLAN_SOURCE.SELECTED);
+  });
+
+  it('un plan DESACTIVADO no se puede activar (404)', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planId = await seedWeeklyPlan(admin, routineId);
+    await request(app).delete(`/api/v1/weekly-plans/${planId}`).set(authHeader(admin));
+    const free = await createFreeUser();
+
+    const res = await request(app)
+      .post(`${BASE}/activate`)
+      .set(authHeader(free))
+      .send({ weeklyPlanId: planId });
+    expect(res.status).toBe(404);
+    expect(await UserPlan.countDocuments({ userId: free._id })).toBe(0);
+  });
+
+  it.each([
+    ['FREE con plan propio', createFreeUser],
+    ['PREMIUM', createPremiumUser],
+  ])('%s con plan colgante (planUnavailable) puede activar otro', async (_label, makeUser) => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planA = await seedWeeklyPlan(admin, routineId);
+    const planB = await seedWeeklyPlan(admin, routineId);
+    const user = await makeUser();
+
+    await request(app)
+      .post(`${BASE}/activate`)
+      .set(authHeader(user))
+      .send({ weeklyPlanId: planA });
+    await WeeklyPlan.findByIdAndDelete(planA); // referencia colgante
+
+    const res = await request(app)
+      .post(`${BASE}/activate`)
+      .set(authHeader(user))
+      .send({ weeklyPlanId: planB });
+    expect(res.status).toBe(201);
+
+    const plans = await UserPlan.find({ userId: user._id }).lean();
+    expect(plans.filter((p) => p.status === 'active')).toHaveLength(1);
+    expect(plans.find((p) => p.status === 'abandoned').weeklyPlanId.toString()).toBe(planA);
+
+    const mine = await request(app).get(BASE).set(authHeader(user));
+    expect(mine.body.data.plan.planUnavailable).toBe(false);
+    expect(mine.body.data.plan.weeklyPlanId._id).toBe(planB);
+  });
+
+  it('FREE recomendado: si crear el nuevo falla, el recomendado sigue activo (transacción)', async () => {
+    const admin = await createAdmin();
+    const routineId = await seedRoutine(admin);
+    const planA = await seedWeeklyPlan(admin, routineId);
+    const planB = await seedWeeklyPlan(admin, routineId);
+    const free = await createFreeUser();
+    await userPlanService.createUserPlanForUser({
+      userId: free._id,
+      weeklyPlan: await WeeklyPlan.findById(planA),
+      source: PLAN_SOURCE.RECOMMENDED,
+    });
+
+    const spy = jest
+      .spyOn(UserPlan, 'create')
+      .mockRejectedValueOnce(new Error('fallo simulado'));
+    const res = await request(app)
+      .post(`${BASE}/activate`)
+      .set(authHeader(free))
+      .send({ weeklyPlanId: planB });
+    spy.mockRestore();
+
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    const active = await UserPlan.find({ userId: free._id, status: 'active' }).lean();
+    expect(active).toHaveLength(1);
+    expect(active[0].source).toBe(PLAN_SOURCE.RECOMMENDED);
+  });
+
+  it('con el índice único parcial, un doble tap deja UN solo plan activo (el otro 409)', async () => {
+    await UserPlan.collection.createIndex(
+      { userId: 1 },
+      { unique: true, partialFilterExpression: { status: 'active' }, name: 'uniq_active_plan_per_user' }
+    );
+    try {
+      const admin = await createAdmin();
+      const routineId = await seedRoutine(admin);
+      const planId = await seedWeeklyPlan(admin, routineId);
+      const free = await createFreeUser();
+
+      const [a, b] = await Promise.all(
+        [0, 1].map(() =>
+          request(app)
+            .post(`${BASE}/activate`)
+            .set(authHeader(free))
+            .send({ weeklyPlanId: planId })
+        )
+      );
+      const statuses = [a.status, b.status].sort();
+      expect(statuses[0]).toBe(201);
+      expect([403, 409]).toContain(statuses[1]);
+      expect(await UserPlan.countDocuments({ userId: free._id, status: 'active' })).toBe(1);
+    } finally {
+      await UserPlan.collection.dropIndex('uniq_active_plan_per_user');
+    }
   });
 });

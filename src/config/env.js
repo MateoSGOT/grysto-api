@@ -60,15 +60,22 @@ const config = Object.freeze({
     refreshExpires: optional('JWT_REFRESH_EXPIRES', '7d'),
   }),
 
+  authCodes: Object.freeze({
+    // Clave HMAC de los códigos de 6 dígitos (verificación / reset). En
+    // producción debe ser una clave PROPIA (AUTH_CODE_SECRET); si falta, se
+    // deriva de JWT_REFRESH_SECRET (ver services/authCode.service.js).
+    secret: optional('AUTH_CODE_SECRET', ''),
+  }),
+
   email: Object.freeze({
     resendApiKey: optional('RESEND_API_KEY', ''),
     from: optional('EMAIL_FROM', 'GRYSTO <no-reply@grysto.com>'),
   }),
 
   client: Object.freeze({
+    // Solo para CORS (origen permitido; p. ej. un futuro panel admin web). NO se
+    // usa para construir links: verificación y reset van por código de 6 dígitos.
     frontendUrl: optional('FRONTEND_URL', 'http://localhost:5173'),
-    verifyUrl: optional('CLIENT_VERIFY_URL', 'http://localhost:5173/verify-email'),
-    resetUrl: optional('CLIENT_RESET_URL', 'http://localhost:5173/reset-password'),
   }),
 
   ai: Object.freeze({
