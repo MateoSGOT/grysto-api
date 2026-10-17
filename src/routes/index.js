@@ -6,20 +6,14 @@
  */
 
 const express = require('express');
-const ApiResponse = require('../utils/ApiResponse');
+const { health } = require('../controllers/health.controller');
 
 const router = express.Router();
 
 /**
- * GET /api/v1/health — healthcheck del servicio.
+ * GET /api/v1/health — alias del health check de la raíz (`/health`).
  */
-router.get('/health', (req, res) =>
-  ApiResponse.success(
-    res,
-    { status: 'ok', timestamp: new Date().toISOString() },
-    'GRYSTO API operativa'
-  )
-);
+router.get('/health', health);
 
 router.use('/auth', require('./auth.routes'));
 router.use('/profile', require('./profile.routes'));

@@ -55,6 +55,7 @@ async function bootstrap() {
     console.log(
       `✓ [server] GRYSTO API escuchando en ${HOST}:${config.port} (${config.nodeEnv})`
     );
+    if (config.isProduction) return;
     // eslint-disable-next-line no-console
     console.log(`  · local:   http://localhost:${config.port}/api/v1`);
     // eslint-disable-next-line no-console

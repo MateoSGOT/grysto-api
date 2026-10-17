@@ -81,9 +81,14 @@ describe('email.service — envío con Resend', () => {
     const svc = loadWithResend(send);
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-    const res = await svc.sendPasswordResetCode('a@b.com', 'Mateo', '123456');
+    const res = await svc.sendPasswordResetCode('ana@b.com', 'Mateo', '123456');
     expect(res).toEqual({ sent: false });
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('Resend rechazó'));
+    // El log no expone el código ni el email completo.
+    const logged = spy.mock.calls.flat().join(' ');
+    expect(logged).toContain('a***@b.com');
+    expect(logged).not.toContain('ana@b.com');
+    expect(logged).not.toContain('123456');
     spy.mockRestore();
   });
 });

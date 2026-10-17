@@ -14,6 +14,7 @@
 const { Resend } = require('resend');
 const { config } = require('../config/env');
 const { AUTH_CODE_POLICY } = require('../constants/authCodes');
+const { maskEmail } = require('../utils/redact');
 
 /** Paleta del sistema visual de Grysto (rojo solo como acento puntual). */
 const COLORS = Object.freeze({
@@ -124,13 +125,13 @@ async function dispatch({ to, subject, html, devCode }) {
     });
     if (error) {
       // eslint-disable-next-line no-console
-      console.error(`✗ [email] Resend rechazó el envío a ${to}: ${error.message}`);
+      console.error(`✗ [email] Resend rechazó el envío a ${maskEmail(to)}: ${error.message}`);
       return { sent: false };
     }
     return { sent: true };
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error(`✗ [email] Fallo enviando a ${to}: ${err.message}`);
+    console.error(`✗ [email] Fallo enviando a ${maskEmail(to)}: ${err.message}`);
     return { sent: false };
   }
 }
