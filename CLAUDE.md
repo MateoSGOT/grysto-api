@@ -272,6 +272,18 @@ ejercicio queda sin video (placeholder en la app).
 4. `node scripts/seed.js --dry-run` → `node scripts/seed.js` (con las env de
    contraseña). Correrlo de nuevo debe decir `0 creados, 0 actualizados`.
 
+## Deploy pendiente (producción)
+
+Variables que hay que configurar en producción (Render) antes de publicar la
+auth por código:
+
+- **`AUTH_CODE_SECRET` propia** (larga, aleatoria). Sin ella se deriva de
+  `JWT_REFRESH_SECRET`, que es solo un fallback de desarrollo.
+- **`EMAIL_FROM` con el dominio definitivo de Grysto** (hoy en desarrollo se
+  usa un dominio provisorio).
+- **`RESEND_API_KEY` de la cuenta de Resend donde esté verificado ese
+  dominio**. Si la key es de otra cuenta, Resend rechaza el envío.
+
 ## Reglas de trabajo
 
 - **NUNCA leer ni imprimir `.env`.** Secretos solo ahí.
