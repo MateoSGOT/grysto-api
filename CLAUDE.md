@@ -274,8 +274,14 @@ ejercicio queda sin video (placeholder en la app).
 
 ## Deploy pendiente (producción)
 
-Variables que hay que configurar en producción (Render) antes de publicar la
-auth por código:
+Render con el blueprint `render.yaml` (servicio `grysto-api`, base
+`grysto_prod` en el mismo cluster). Guía paso a paso fuera del repo:
+`C:\proyectos\DEPLOY_RENDER.md`. **`autoDeploy`: cada push a `main` despliega**,
+así que `main` tiene que estar siempre desplegable. La región de
+`render.yaml` está como `REGION_PENDIENTE` hasta elegirla.
+
+Variables que hay que configurar en producción antes de publicar la auth por
+código:
 
 - **`AUTH_CODE_SECRET` propia** (larga, aleatoria). Sin ella se deriva de
   `JWT_REFRESH_SECRET`, que es solo un fallback de desarrollo.
@@ -283,6 +289,38 @@ auth por código:
   usa un dominio provisorio).
 - **`RESEND_API_KEY` de la cuenta de Resend donde esté verificado ese
   dominio**. Si la key es de otra cuenta, Resend rechaza el envío.
+
+Con `NODE_ENV=production`, `config/env.js` (`loadConfig`) **no arranca** si
+falta alguna de `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `AUTH_CODE_SECRET`,
+`RESEND_API_KEY`, `EMAIL_FROM`, `MONGODB_URI`, `DB_NAME` o `GEMINI_API_KEY`.
+También corta si un secreto tiene menos de 32 caracteres o se repite, y en
+todos los casos informa todos los problemas juntos, sin valores.
+
+Otras piezas de producción:
+
+- **`trust proxy`**: `TRUST_PROXY` vale 1 por defecto en producción (el proxy
+  de Render) y está desactivado en desarrollo. `true` se rechaza porque dejaría
+  falsear la IP y esquivar los rate limits.
+- **`GET /health`** (alias `/api/v1/health`): no consulta la base, solo lee el
+  `readyState`. Devuelve 200 si está conectado y 503 si no. Va antes del access
+  log.
+- **Coach**: timeout `AI_TIMEOUT_MS` (20 s por defecto) → 504 `AI_TIMEOUT`.
+- **Logs**: el access log registra método, ruta sin query, status y ms, y
+  ninguno de los logs muestra body, headers, IP ni usuario. Los emails salen
+  enmascarados (`utils/redact.maskEmail`). Hay un test que verifica que no
+  aparecen contraseñas, tokens ni códigos.
+- **Refresh tokens**: siempre hasheados (SHA-256). El validador de
+  `refreshtokens` exige `pattern: ^[0-9a-f]{64}$`; el generador traduce la
+  opción `pattern` de un SchemaType.
+- **Seed**: `node scripts/seed.js --prod` solo corre contra `grysto_prod` y
+  crea únicamente el catálogo y el admin `grystoworkouts@gmail.com`, nunca el
+  demo. Sin `--prod`, se niega a tocar `grysto_prod`. En `--prod` no crea
+  colecciones ni índices (`autoCreate`/`autoIndex` en false) y aborta si falta
+  alguna colección: deben existir antes, creadas con su validador. En una base
+  vacía, que Mongoose cree colecciones e índices mientras el seed escribe
+  dejaba el insert colgado.
+
+**Antes de pushear a `main`:** `npm test` y `node scripts/generate-validators.js --check`.
 
 ## Reglas de trabajo
 

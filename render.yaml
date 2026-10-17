@@ -1,0 +1,46 @@
+# Blueprint de Render para grysto-api.
+# Guía completa: C:\proyectos\DEPLOY_RENDER.md
+#
+# OJO: con este blueprint Render despliega SOLO en cada push a `main`
+# (autoDeploy). `main` tiene que estar siempre desplegable.
+services:
+  - type: web
+    name: grysto-api
+    runtime: node
+    plan: free # pasar al plan pago antes de la prueba cerrada
+    # ⚠️ PENDIENTE — reemplazar ANTES de crear el servicio (la región no se
+    # puede cambiar después). Elegí la región de Render más cercana a la del
+    # cluster de Atlas (Atlas → Database → cluster → región). Valores válidos:
+    # oregon | ohio | virginia | frankfurt | singapore.
+    # (Un chequeo de solo lectura reportó el cluster en AWS US_EAST_1 → virginia.)
+    region: REGION_PENDIENTE
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci --omit=dev
+    # node directo (sin npm) para que el SIGTERM de Render llegue al cierre ordenado.
+    startCommand: node src/server.js
+    healthCheckPath: /health
+    envVars:
+      # Valores fijos (no secretos).
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DB_NAME
+        value: grysto_prod
+      # Secretos: sync:false → Render los pide al crear el servicio; nunca van
+      # en el repo. Generarlos NUEVOS (no reusar los de desarrollo).
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: AUTH_CODE_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
