@@ -20,8 +20,18 @@
  *   $env:SEED_ADMIN_PASSWORD="..."; $env:SEED_DEMO_PASSWORD="..."; node scripts/seed.js
  *
  * `--dry-run`: conecta y LEE, imprime qué crearía/actualizaría, no escribe.
+ *
+ * PRODUCCIÓN (`--prod`): SOLO el catálogo y el admin de producción
+ * (`grystoworkouts@gmail.com`, contraseña por SEED_ADMIN_PASSWORD). NUNCA el
+ * usuario demo. Barreras en los dos sentidos:
+ * - `--prod` solo corre contra DB_NAME=grysto_prod;
+ * - contra grysto_prod (o con NODE_ENV=production) el seed sin `--prod` aborta.
+ * Además, en `--prod` no crea colecciones ni índices y aborta si falta alguna
+ * colección (se crean antes en Compass con su validador).
+ *   $env:DB_NAME="grysto_prod"; $env:MONGODB_URI="<URI de producción>"; $env:SEED_ADMIN_PASSWORD="..."; node scripts/seed.js --prod --dry-run
  */
 
+const mongoose = require('mongoose');
 const { connectDB, disconnectDB } = require('../src/config/database');
 const { config } = require('../src/config/env');
 const {
@@ -37,9 +47,62 @@ const { createUserPlanForUser } = require('../src/services/userPlan.service');
 const { EXERCISES, ROUTINES, WEEKLY_PLANS } = require('../db/seed/catalog');
 
 const DRY = process.argv.includes('--dry-run');
+const PROD = process.argv.includes('--prod');
 
-const ADMIN = { nombre: 'Mateo', email: 'mateo@test.com', envPassword: 'SEED_ADMIN_PASSWORD' };
+// En producción el seed NO crea colecciones ni índices: las colecciones se
+// crean a mano en Compass CON su validador (DEPLOY_RENDER.md §1.1) y los
+// índices los crea el server al arrancar. Si Mongoose las creara acá, quedarían
+// sin validador. Se fija antes de conectar (Mongoose lo lee al abrir la conexión).
+if (PROD) {
+  mongoose.set('autoCreate', false);
+  mongoose.set('autoIndex', false);
+}
+
+/** Base de producción: el único destino válido de `--prod`. */
+const PROD_DB = 'grysto_prod';
+
+const DEV_ADMIN = { nombre: 'Mateo', email: 'mateo@test.com', envPassword: 'SEED_ADMIN_PASSWORD' };
+const PROD_ADMIN = { nombre: 'Grysto', email: 'grystoworkouts@gmail.com', envPassword: 'SEED_ADMIN_PASSWORD' };
+const ADMIN = PROD ? PROD_ADMIN : DEV_ADMIN;
 const DEMO = { nombre: 'Demo Workout', email: 'workout.demo@test.com', envPassword: 'SEED_DEMO_PASSWORD' };
+
+/**
+ * Aborta si el modo (`--prod` o no) no corresponde a la base destino: el
+ * usuario demo nunca debe llegar a producción.
+ */
+function assertTarget() {
+  const dbName = config.db.name;
+  if (PROD && dbName !== PROD_DB) {
+    throw new Error(`--prod solo corre contra DB_NAME=${PROD_DB} (DB actual: "${dbName}")`);
+  }
+  if (!PROD && (dbName === PROD_DB || config.isProduction)) {
+    throw new Error(
+      `Contra producción usá --prod: solo catálogo + admin, nunca el usuario demo (DB actual: "${dbName}")`
+    );
+  }
+}
+
+/**
+ * En `--prod`: aborta sin escribir si falta alguna colección de los models
+ * (deben existir antes, creadas con su validador).
+ */
+async function assertCollectionsExist() {
+  const expected = [
+    ...new Set(Object.values(mongoose.models).map((m) => m.collection.collectionName)),
+  ];
+  const existing = new Set(
+    (await mongoose.connection.db.listCollections({}, { nameOnly: true }).toArray()).map(
+      (c) => c.name
+    )
+  );
+  const missing = expected.filter((name) => !existing.has(name)).sort();
+  if (missing.length) {
+    throw new Error(
+      `Faltan colecciones en "${config.db.name}": ${missing.join(', ')}. ` +
+        'Creálas primero en Compass con su validador (DEPLOY_RENDER.md §1.1).'
+    );
+  }
+}
 
 /** Perfil del admin (datos genéricos válidos según el validador). */
 const ADMIN_PROFILE = {
@@ -280,16 +343,22 @@ async function ensureDemoPlan(demo, firstPlanId) {
 }
 
 async function main() {
+  assertTarget();
   // eslint-disable-next-line no-console
-  console.log(`Seed ${DRY ? '(DRY-RUN, no escribe) ' : ''}→ DB "${config.db.name}"`);
+  console.log(
+    `Seed ${PROD ? 'PRODUCCIÓN ' : ''}${DRY ? '(DRY-RUN, no escribe) ' : ''}→ DB "${config.db.name}"`
+  );
   await connectDB();
   try {
+    if (PROD) await assertCollectionsExist();
     const admin = await ensureUser(ADMIN, ROLES.ADMIN);
-    const demo = await ensureUser(DEMO, ROLES.USER);
     await ensureProfile(admin, ADMIN_PROFILE, 'admin');
-    await ensureProfile(demo, DEMO_PROFILE, 'demo');
     const planIds = await seedCatalog(admin?._id);
-    await ensureDemoPlan(demo, planIds[0]);
+    if (!PROD) {
+      const demo = await ensureUser(DEMO, ROLES.USER);
+      await ensureProfile(demo, DEMO_PROFILE, 'demo');
+      await ensureDemoPlan(demo, planIds[0]);
+    }
   } finally {
     await disconnectDB();
   }
