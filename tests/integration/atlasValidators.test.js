@@ -22,6 +22,23 @@ describe('Validadores $jsonSchema de Atlas', () => {
     ).rejects.toMatchObject({ code: 121 });
   });
 
+  it('refreshtokens solo acepta hashes SHA-256, nunca el token en plano', async () => {
+    const tokens = mongoose.connection.db.collection('refreshtokens');
+    const doc = (token) => ({
+      userId: new mongoose.Types.ObjectId(),
+      token,
+      expiresAt: new Date(Date.now() + 60_000),
+      isRevoked: false,
+      replacedByToken: null,
+      createdByIp: null,
+      revokedAt: null,
+      createdAt: new Date(),
+    });
+    await expect(tokens.insertOne(doc('a'.repeat(64)))).resolves.toBeTruthy();
+    // Un token opaco en plano (80 hex) no tiene forma de hash.
+    await expect(tokens.insertOne(doc('b'.repeat(80)))).rejects.toMatchObject({ code: 121 });
+  });
+
   it('campos con default no aceptan null (users.role, userPlans.status)', async () => {
     const { db } = mongoose.connection;
     const now = new Date();

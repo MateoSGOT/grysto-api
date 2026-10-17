@@ -13,6 +13,13 @@ const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 días
 const TOKEN_BYTES = 40;
 
 /**
+ * Formato del hash SHA-256 en hex. `pattern` (PCRE) lo traduce el generador al
+ * validador de Atlas: la base rechaza cualquier token que no sea un hash.
+ */
+const HASH_PATTERN = '^[0-9a-f]{64}$';
+const hashFormat = { match: new RegExp(HASH_PATTERN), pattern: HASH_PATTERN };
+
+/**
  * Hashea un token en plano con SHA-256.
  *
  * @param {string} plainToken - Token en texto plano.
@@ -29,10 +36,10 @@ const refreshTokenSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    token: { type: String, required: true }, // hash SHA-256
+    token: { type: String, required: true, ...hashFormat }, // hash SHA-256
     expiresAt: { type: Date, required: true },
     isRevoked: { type: Boolean, default: false },
-    replacedByToken: { type: String, default: null }, // hash del sucesor
+    replacedByToken: { type: String, default: null, ...hashFormat }, // hash del sucesor
     createdByIp: { type: String, default: null },
     revokedAt: { type: Date, default: null },
   },

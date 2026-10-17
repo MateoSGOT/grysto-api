@@ -20,7 +20,8 @@
  *   requerido y nullable `[tipo, "null"]` (y `null` en su enum).
  * - Sin default ni required → opcional y nullable.
  * - min/max → minimum/maximum; minlength/maxlength → minLength/maxLength.
- *   (No se traducen los `match` de regex: JS y PCRE difieren.)
+ *   (No se traducen los `match` de regex: JS y PCRE difieren. Para validar un
+ *   formato en Atlas, el schema declara aparte `pattern: '<regex PCRE>'`.)
  * - `Mixed` → `{}` (cualquier valor).
  *
  * Uso:
@@ -72,6 +73,7 @@ function scalarConstraints(st) {
   if (o.max !== undefined && st.instance === 'Number') out.maximum = unwrap(o.max);
   if (o.minlength !== undefined) out.minLength = unwrap(o.minlength);
   if (o.maxlength !== undefined) out.maxLength = unwrap(o.maxlength);
+  if (typeof o.pattern === 'string') out.pattern = o.pattern;
   return out;
 }
 
