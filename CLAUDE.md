@@ -277,8 +277,8 @@ ejercicio queda sin video (placeholder en la app).
 Render con el blueprint `render.yaml` (servicio `grysto-api`, base
 `grysto_prod` en el mismo cluster). Guía paso a paso fuera del repo:
 `C:\proyectos\DEPLOY_RENDER.md`. **`autoDeploy`: cada push a `main` despliega**,
-así que `main` tiene que estar siempre desplegable. La región de
-`render.yaml` está como `REGION_PENDIENTE` hasta elegirla.
+así que `main` tiene que estar siempre desplegable. Región: `virginia`, la misma
+zona que el cluster de Atlas (AWS us-east-1).
 
 Variables que hay que configurar en producción antes de publicar la auth por
 código:

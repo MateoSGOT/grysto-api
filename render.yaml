@@ -8,12 +8,9 @@ services:
     name: grysto-api
     runtime: node
     plan: free # pasar al plan pago antes de la prueba cerrada
-    # ⚠️ PENDIENTE — reemplazar ANTES de crear el servicio (la región no se
-    # puede cambiar después). Elegí la región de Render más cercana a la del
-    # cluster de Atlas (Atlas → Database → cluster → región). Valores válidos:
-    # oregon | ohio | virginia | frankfurt | singapore.
-    # (Un chequeo de solo lectura reportó el cluster en AWS US_EAST_1 → virginia.)
-    region: REGION_PENDIENTE
+    # Misma zona que el cluster de Atlas (AWS / N. Virginia, us-east-1). La
+    # región no se puede cambiar después de crear el servicio.
+    region: virginia
     branch: main
     autoDeploy: true
     buildCommand: npm ci --omit=dev
