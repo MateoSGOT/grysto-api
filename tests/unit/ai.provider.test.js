@@ -108,3 +108,62 @@ describe('AnthropicProvider — stub', () => {
     expect(payload.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
   });
 });
+
+describe('GeminiProvider.generate — timeout', () => {
+  let originalFetch;
+
+  /** Promesa que solo se resuelve (rechaza) cuando se aborta la señal. */
+  const untilAborted = (signal) =>
+    new Promise((_, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason));
+    });
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('504 AI_TIMEOUT si Gemini no responde a tiempo', async () => {
+    global.fetch = jest.fn((_url, { signal }) => untilAborted(signal));
+    const provider = new GeminiProvider();
+    provider.timeoutMs = 50;
+
+    await expect(provider.generate(MESSAGES)).rejects.toMatchObject({
+      statusCode: 504,
+      code: 'AI_TIMEOUT',
+      message: 'El Coach IA tardó demasiado en responder. Intenta de nuevo.',
+    });
+  });
+
+  it('504 AI_TIMEOUT si la respuesta llega pero el body se cuelga', async () => {
+    global.fetch = jest.fn(async (_url, { signal }) => ({
+      ok: true,
+      status: 200,
+      json: () => untilAborted(signal),
+      text: async () => '',
+    }));
+    const provider = new GeminiProvider();
+    provider.timeoutMs = 50;
+
+    await expect(provider.generate(MESSAGES)).rejects.toMatchObject({
+      statusCode: 504,
+      code: 'AI_TIMEOUT',
+    });
+  });
+
+  it('usa AI_TIMEOUT_MS de la config (20 s por defecto) y le pasa la señal a fetch', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => GEMINI_SAMPLE,
+      text: async () => '',
+    });
+    const provider = new GeminiProvider();
+    expect(provider.timeoutMs).toBe(20000);
+    await provider.generate(MESSAGES);
+    expect(global.fetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+});

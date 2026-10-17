@@ -14,11 +14,28 @@ const { AI_PROVIDERS, MSG_ROLES } = require('../../../constants/enums');
 const API_BASE =
   'https://generativelanguage.googleapis.com/v1beta/models';
 
+/** Código de negocio del timeout (la app puede distinguirlo de otros 5xx). */
+const AI_TIMEOUT_CODE = 'AI_TIMEOUT';
+
+/** true si el error viene del AbortSignal.timeout. */
+const isTimeout = (err) => err?.name === 'TimeoutError' || err?.name === 'AbortError';
+
+/** 504 claro cuando Gemini no responde a tiempo. */
+function timeoutError(timeoutMs) {
+  return new ApiError(
+    504,
+    'El Coach IA tardó demasiado en responder. Intenta de nuevo.',
+    { timeoutMs }
+  ).withCode(AI_TIMEOUT_CODE);
+}
+
 class GeminiProvider extends AIProvider {
   constructor() {
     super(AI_PROVIDERS.GEMINI);
     this.apiKey = config.ai.gemini.apiKey;
     this.model = config.ai.gemini.model;
+    // Tiempo máximo por llamada (conexión + lectura de la respuesta).
+    this.timeoutMs = config.ai.timeoutMs;
   }
 
   /**
@@ -58,7 +75,8 @@ class GeminiProvider extends AIProvider {
    * @param {import('./base.provider').AIMessage[]} messages - Conversación.
    * @param {Object} [options] - Opciones (no usadas por ahora).
    * @returns {Promise<import('./base.provider').AIResult>} Resultado normalizado.
-   * @throws {ApiError} 500 si falta la API key; 429 si Gemini limita; 502 ante error del proveedor.
+   * @throws {ApiError} 500 si falta la API key; 429 si Gemini limita; 502 ante
+   *   error del proveedor; 504 (`AI_TIMEOUT`) si no responde en `timeoutMs`.
    */
   // eslint-disable-next-line no-unused-vars
   async generate(messages, options = {}) {
@@ -70,6 +88,8 @@ class GeminiProvider extends AIProvider {
     const body = GeminiProvider.buildRequestBody(messages);
 
     const startedAt = Date.now();
+    // Un solo deadline para toda la llamada: cubre también la lectura del body.
+    const signal = AbortSignal.timeout(this.timeoutMs);
     let response;
     try {
       response = await fetch(url, {
@@ -79,13 +99,14 @@ class GeminiProvider extends AIProvider {
           'x-goog-api-key': this.apiKey,
         },
         body: JSON.stringify(body),
+        signal,
       });
     } catch (err) {
+      if (isTimeout(err)) throw timeoutError(this.timeoutMs);
       throw new ApiError(502, 'No se pudo contactar al Coach IA (Gemini)', {
         cause: err.message,
       });
     }
-    const responseTimeMs = Date.now() - startedAt;
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
@@ -100,7 +121,14 @@ class GeminiProvider extends AIProvider {
       });
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (err) {
+      if (isTimeout(err) || signal.aborted) throw timeoutError(this.timeoutMs);
+      throw new ApiError(502, 'Respuesta inválida del proveedor de IA (Gemini)');
+    }
+    const responseTimeMs = Date.now() - startedAt;
     const candidate = data.candidates?.[0];
     const text = candidate?.content?.parts
       ?.map((p) => p.text || '')
@@ -129,4 +157,4 @@ class GeminiProvider extends AIProvider {
   }
 }
 
-module.exports = { GeminiProvider };
+module.exports = { GeminiProvider, AI_TIMEOUT_CODE };
