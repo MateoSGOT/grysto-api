@@ -348,3 +348,17 @@ Otras piezas de producción:
 4. **`category` del día es string libre** en el schema y el validator de
    weeklyPlan — debería validarse contra un enum en Zod (el frontend mapea
    imágenes/íconos por convención sobre EXERCISE_CATEGORIES + 'descanso').
+5. **mongoose fijado en `~9.7`** (pendiente: subir a 9.11+ en una rama aparte).
+   Desde 9.11 trae el driver `mongodb` 7.7, que arma la metadata del handshake
+   con un `import()` dinámico. Dentro de Jest (sin `--experimental-vm-modules`)
+   ese import falla en silencio, el driver manda metadata vacía y el mongod de
+   `mongodb-memory-server` rechaza la conexión (`ClientMetadataMissingField`):
+   no arranca ninguna suite. En Node normal conecta bien. Primero hay que
+   arreglar ese handshake en Jest (flag de VM o un driver que no use el
+   `import()`); recién ahí subir mongoose, con `mongodb` deduplicado para
+   `mongodb-memory-server`, y probar contra `grysto_db` antes de mergear.
+6. **Vulnerabilidades solo de desarrollo** (no entran en Render, que instala
+   con `--omit=dev`): `braces` (vía nodemon → chokidar) y `sprintf-js` (vía
+   jest → istanbul → js-yaml 3). Hoy no hay versión arreglada; el `--force` de
+   `npm audit` propone bajar a nodemon 1.x / jest 25, que no sirve. Revisar con
+   `npm audit` cuando salgan versiones arregladas.
